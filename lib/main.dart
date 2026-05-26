@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'constants/app_colors.dart';
-import 'screens/home.dart'; // Import file HomeScreen yang baru dibuat
+import 'providers/interview_plan_controller.dart';
+import 'screens/interview_plan_screen.dart';
+import 'screens/interview_session_screen.dart';
+import 'services/ai_interview_service.dart';
+import 'services/interview_plan_repository.dart';
+import 'services/open_router_ai_interview_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -38,22 +43,38 @@ class MainNavigationWrapper extends StatefulWidget {
 
 class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   int _currentIndex = 0;
+  static const _openRouterApiKey = String.fromEnvironment('OPENROUTER_API_KEY');
+  late final InterviewPlanController _planController;
+  late final AiInterviewService _aiService;
 
-  // Daftar halaman aplikasi
-  final List<Widget> _pages = [
-    const HomeScreen(), // Indeks 0: Halaman Katalog Komponen Anda
-    const Center(child: Text('Halaman CV (Fitur Selanjutnya)', style: TextStyle(fontSize: 16))), // Indeks 1
-    const Center(child: Text('Halaman Saved (Fitur Selanjutnya)', style: TextStyle(fontSize: 16))), // Indeks 2
-    const Center(child: Text('Halaman Profile (Fitur Selanjutnya)', style: TextStyle(fontSize: 16))), // Indeks 3
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _planController = InterviewPlanController(
+      repository: InMemoryInterviewPlanRepository(),
+      userId: 'demo_user',
+    );
+    _aiService = _openRouterApiKey.isEmpty
+        ? MockAiInterviewService()
+        : OpenRouterAiInterviewService(apiKey: _openRouterApiKey);
+  }
+
+  @override
+  void dispose() {
+    _planController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final pages = [
+      InterviewPlanScreen(controller: _planController),
+      InterviewSessionScreen(aiService: _aiService),
+      const Center(child: Text('Profile and saved reviews will appear here.')),
+    ];
+
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages, // Menjaga state halaman agar tidak reload saat berpindah tab
-      ),
+      body: IndexedStack(index: _currentIndex, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (int index) {
@@ -62,22 +83,17 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
           });
         },
         backgroundColor: Colors.white,
-        indicatorColor: AppColors.main.withOpacity(0.2),
+        indicatorColor: AppColors.main.withValues(alpha: 0.2),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home, color: AppColors.main),
-            label: 'Home',
+            icon: Icon(Icons.event_note_outlined),
+            selectedIcon: Icon(Icons.event_note, color: AppColors.main),
+            label: 'Plan',
           ),
           NavigationDestination(
-            icon: Icon(Icons.description_outlined),
-            selectedIcon: Icon(Icons.description, color: AppColors.main),
-            label: 'CV',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bookmark_border),
-            selectedIcon: Icon(Icons.bookmark, color: AppColors.main),
-            label: 'Saved',
+            icon: Icon(Icons.chat_bubble_outline),
+            selectedIcon: Icon(Icons.chat_bubble, color: AppColors.main),
+            label: 'Interview',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
