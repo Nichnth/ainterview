@@ -77,6 +77,8 @@ class MainNavigationWrapper extends StatefulWidget {
 
 class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   int _currentIndex = 0;
+  int _practiceRequestVersion = 0;
+  String? _practiceScheduleItemId;
   static const _openRouterApiKey = String.fromEnvironment('OPENROUTER_API_KEY');
   late final InterviewPlanController _planController;
   late final InterviewSessionRepository _sessionRepository;
@@ -107,11 +109,16 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      InterviewPlanScreen(controller: _planController),
+      InterviewPlanScreen(
+        controller: _planController,
+        onPracticeItem: _startPracticeFromPlanItem,
+      ),
       InterviewSessionScreen(
         aiService: _aiService,
         planController: _planController,
         sessionRepository: _sessionRepository,
+        practiceScheduleItemId: _practiceScheduleItemId,
+        practiceRequestVersion: _practiceRequestVersion,
       ),
       const Center(child: Text('Profile and saved reviews will appear here.')),
     ];
@@ -146,5 +153,13 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
         ],
       ),
     );
+  }
+
+  void _startPracticeFromPlanItem(String scheduleItemId) {
+    setState(() {
+      _practiceScheduleItemId = scheduleItemId;
+      _practiceRequestVersion += 1;
+      _currentIndex = 1;
+    });
   }
 }

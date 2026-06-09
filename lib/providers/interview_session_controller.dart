@@ -30,6 +30,8 @@ class InterviewSessionController extends ChangeNotifier {
   InterviewLanguage? _language;
   DateTime? _startedAt;
   String? _linkedPlanId;
+  String? _linkedScheduleItemId;
+  String? _preparationFocusTitle;
   InterviewPreparationContext? _preparationContext;
   InterviewSession? _currentSession;
   InterviewReview? _review;
@@ -60,6 +62,7 @@ class InterviewSessionController extends ChangeNotifier {
     required InterviewStage stage,
     required InterviewLanguage language,
     String? linkedPlanId,
+    String? linkedScheduleItemId,
     InterviewPreparationContext? preparationContext,
   }) async {
     _level = level;
@@ -67,6 +70,8 @@ class InterviewSessionController extends ChangeNotifier {
     _language = language;
     _startedAt = _now().toUtc();
     _linkedPlanId = linkedPlanId;
+    _linkedScheduleItemId = linkedScheduleItemId;
+    _preparationFocusTitle = preparationContext?.primaryFocusTitle;
     _preparationContext = preparationContext;
     _currentSession = InterviewSession(
       id: '',
@@ -75,6 +80,8 @@ class InterviewSessionController extends ChangeNotifier {
       language: language,
       startedAt: _startedAt!,
       linkedPlanId: linkedPlanId,
+      linkedScheduleItemId: linkedScheduleItemId,
+      preparationFocusTitle: _preparationFocusTitle,
       messages: const [],
     );
     _review = null;
@@ -203,6 +210,8 @@ class InterviewSessionController extends ChangeNotifier {
       startedAt: _startedAt ?? _now().toUtc(),
       endedAt: _now().toUtc(),
       linkedPlanId: _linkedPlanId,
+      linkedScheduleItemId: _linkedScheduleItemId,
+      preparationFocusTitle: _preparationFocusTitle,
       messages: messages,
       review: review,
     );
@@ -226,6 +235,8 @@ class InterviewSessionController extends ChangeNotifier {
           language: _language!,
           startedAt: _startedAt ?? _now().toUtc(),
           linkedPlanId: _linkedPlanId,
+          linkedScheduleItemId: _linkedScheduleItemId,
+          preparationFocusTitle: _preparationFocusTitle,
           messages: const [],
         );
     _currentSession = session.copyWith(messages: messages);

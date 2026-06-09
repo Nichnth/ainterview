@@ -164,9 +164,11 @@ class InterviewPlanController extends ChangeNotifier {
     final recommendationItems = [
       for (var index = 0; index < recommendations.length; index++)
         ScheduleItem(
+          id: 'review_${reviewId}_${recommendations[index].id}',
           dayOffset: lastDayOffset + index + 1,
           title: recommendations[index].title,
           description: recommendations[index].description,
+          suggestedStage: recommendations[index].stage,
           sourceReviewId: reviewId,
           sourceRecommendationId: recommendations[index].id,
         ),

@@ -83,6 +83,39 @@ void main() {
     );
   });
 
+  testWidgets('starts a technical interview from a selected plan topic', (
+    tester,
+  ) async {
+    await tester.pumpWidget(MyApp(aiService: MockAiInterviewService()));
+    await tester.pumpAndSettle(const Duration(seconds: 1));
+
+    await tester.tap(find.text('Generate Practice Plan'));
+    await tester.pumpAndSettle();
+
+    final practiceButton = find.byKey(
+      const ValueKey('practice_technical_focus_state_management'),
+    );
+    await tester.ensureVisible(practiceButton);
+    await tester.tap(practiceButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Interview Setup'), findsOneWidget);
+    expect(
+      find.textContaining('Fokus: Technical Focus: State Management'),
+      findsOneWidget,
+    );
+
+    await tester.ensureVisible(find.text('Start AI Interview'));
+    await tester.tap(find.text('Start AI Interview'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Junior Dev Technical'), findsOneWidget);
+    expect(
+      find.textContaining('Technical Focus: State Management'),
+      findsWidgets,
+    );
+  });
+
   testWidgets('review errors stay visible and leave the end button usable', (
     tester,
   ) async {

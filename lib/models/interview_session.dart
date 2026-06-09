@@ -12,6 +12,8 @@ class InterviewSession {
     required this.messages,
     this.endedAt,
     this.linkedPlanId,
+    this.linkedScheduleItemId,
+    this.preparationFocusTitle,
     this.review,
   });
 
@@ -22,6 +24,8 @@ class InterviewSession {
   final DateTime startedAt;
   final DateTime? endedAt;
   final String? linkedPlanId;
+  final String? linkedScheduleItemId;
+  final String? preparationFocusTitle;
   final List<InterviewMessage> messages;
   final InterviewReview? review;
 
@@ -33,6 +37,8 @@ class InterviewSession {
     DateTime? startedAt,
     DateTime? endedAt,
     String? linkedPlanId,
+    String? linkedScheduleItemId,
+    String? preparationFocusTitle,
     List<InterviewMessage>? messages,
     InterviewReview? review,
   }) {
@@ -44,6 +50,9 @@ class InterviewSession {
       startedAt: startedAt ?? this.startedAt,
       endedAt: endedAt ?? this.endedAt,
       linkedPlanId: linkedPlanId ?? this.linkedPlanId,
+      linkedScheduleItemId: linkedScheduleItemId ?? this.linkedScheduleItemId,
+      preparationFocusTitle:
+          preparationFocusTitle ?? this.preparationFocusTitle,
       messages: messages ?? this.messages,
       review: review ?? this.review,
     );

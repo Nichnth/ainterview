@@ -5,15 +5,21 @@ import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
 import '../models/interview_enums.dart';
 import '../models/interview_plan.dart';
+import '../models/schedule_item.dart';
 import '../providers/interview_plan_controller.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_dropdown.dart';
 import '../widgets/date_time_picker.dart';
 
 class InterviewPlanScreen extends StatefulWidget {
-  const InterviewPlanScreen({super.key, required this.controller});
+  const InterviewPlanScreen({
+    super.key,
+    required this.controller,
+    this.onPracticeItem,
+  });
 
   final InterviewPlanController controller;
+  final ValueChanged<String>? onPracticeItem;
 
   @override
   State<InterviewPlanScreen> createState() => _InterviewPlanScreenState();
@@ -112,6 +118,7 @@ class _InterviewPlanScreenState extends State<InterviewPlanScreen> {
                     _PlanDetail(
                       plan: widget.controller.selectedPlan!,
                       controller: widget.controller,
+                      onPracticeItem: widget.onPracticeItem,
                     ),
                 ],
               ],
@@ -293,10 +300,15 @@ class _PlanSummaryTile extends StatelessWidget {
 }
 
 class _PlanDetail extends StatelessWidget {
-  const _PlanDetail({required this.plan, required this.controller});
+  const _PlanDetail({
+    required this.plan,
+    required this.controller,
+    required this.onPracticeItem,
+  });
 
   final InterviewPlan plan;
   final InterviewPlanController controller;
+  final ValueChanged<String>? onPracticeItem;
 
   @override
   Widget build(BuildContext context) {
@@ -353,15 +365,15 @@ class _PlanDetail extends StatelessWidget {
             for (var index = 0; index < plan.scheduleItems.length; index++)
               _ScheduleTile(
                 itemNumber: index + 1,
-                title: plan.scheduleItems[index].title,
-                description: plan.scheduleItems[index].description,
-                dayOffset: plan.scheduleItems[index].dayOffset,
-                isCompleted: plan.scheduleItems[index].isCompleted,
+                item: plan.scheduleItems[index],
                 onChanged: (value) => controller.toggleScheduleItem(
                   plan.id,
                   itemIndex: index,
                   isCompleted: value ?? false,
                 ),
+                onPractice: onPracticeItem == null
+                    ? null
+                    : () => onPracticeItem!(plan.scheduleItems[index].id),
               ),
           ],
         ],
@@ -373,19 +385,15 @@ class _PlanDetail extends StatelessWidget {
 class _ScheduleTile extends StatelessWidget {
   const _ScheduleTile({
     required this.itemNumber,
-    required this.title,
-    required this.description,
-    required this.dayOffset,
-    required this.isCompleted,
+    required this.item,
     required this.onChanged,
+    required this.onPractice,
   });
 
   final int itemNumber;
-  final String title;
-  final String description;
-  final int dayOffset;
-  final bool isCompleted;
+  final ScheduleItem item;
   final ValueChanged<bool?> onChanged;
+  final VoidCallback? onPractice;
 
   @override
   Widget build(BuildContext context) {
@@ -395,28 +403,49 @@ class _ScheduleTile extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border.all(color: AppColors.border),
           borderRadius: BorderRadius.circular(AppSizes.radiusSmall),
-          color: isCompleted
+          color: item.isCompleted
               ? AppColors.success.withValues(alpha: 0.08)
               : Colors.white,
         ),
-        child: CheckboxListTile(
-          value: isCompleted,
-          onChanged: onChanged,
-          controlAffinity: ListTileControlAffinity.leading,
-          activeColor: AppColors.success,
-          title: Text(title, style: AppTextStyles.h3),
-          subtitle: Text(
-            'Day $dayOffset - $description',
-            style: AppTextStyles.caption,
-          ),
-          secondary: CircleAvatar(
-            radius: 16,
-            backgroundColor: AppColors.main.withValues(alpha: 0.14),
-            child: Text(
-              '$itemNumber',
-              style: AppTextStyles.caption.copyWith(color: AppColors.main),
+        child: Column(
+          children: [
+            CheckboxListTile(
+              value: item.isCompleted,
+              onChanged: onChanged,
+              controlAffinity: ListTileControlAffinity.leading,
+              activeColor: AppColors.success,
+              title: Text(item.title, style: AppTextStyles.h3),
+              subtitle: Text(
+                'Day ${item.dayOffset} - ${item.description}',
+                style: AppTextStyles.caption,
+              ),
+              secondary: CircleAvatar(
+                radius: 16,
+                backgroundColor: AppColors.main.withValues(alpha: 0.14),
+                child: Text(
+                  '$itemNumber',
+                  style: AppTextStyles.caption.copyWith(color: AppColors.main),
+                ),
+              ),
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSizes.pMedium,
+                0,
+                AppSizes.pMedium,
+                AppSizes.pSmall,
+              ),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  key: ValueKey('practice_${item.id}'),
+                  onPressed: onPractice,
+                  icon: const Icon(Icons.play_arrow_outlined, size: 18),
+                  label: const Text('Practice'),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

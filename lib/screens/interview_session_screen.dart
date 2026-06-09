@@ -22,11 +22,15 @@ class InterviewSessionScreen extends StatefulWidget {
     required this.aiService,
     this.planController,
     this.sessionRepository,
+    this.practiceScheduleItemId,
+    this.practiceRequestVersion = 0,
   });
 
   final AiInterviewService aiService;
   final InterviewPlanController? planController;
   final InterviewSessionRepository? sessionRepository;
+  final String? practiceScheduleItemId;
+  final int practiceRequestVersion;
 
   @override
   State<InterviewSessionScreen> createState() => _InterviewSessionScreenState();
@@ -38,6 +42,7 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
   InterviewLevel _level = InterviewLevel.junior;
   InterviewStage _stage = InterviewStage.hr;
   InterviewLanguage _language = InterviewLanguage.indonesian;
+  String? _selectedScheduleItemId;
 
   @override
   void initState() {
@@ -55,12 +60,18 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant InterviewSessionScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.practiceRequestVersion != oldWidget.practiceRequestVersion) {
+      _applyPracticeRequest();
+    }
+  }
+
   Future<void> _startSession() async {
     FocusScope.of(context).unfocus();
     final activePlan = widget.planController?.activePlan;
-    final preparationContext = activePlan == null
-        ? null
-        : InterviewPreparationContext.fromPlan(activePlan);
+    final preparationContext = _activePreparationContext();
     final sessionLevel = activePlan?.level ?? _level;
     final sessionLanguage = activePlan?.language ?? _language;
 
@@ -77,6 +88,7 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
       stage: _stage,
       language: sessionLanguage,
       linkedPlanId: activePlan?.id,
+      linkedScheduleItemId: preparationContext?.selectedScheduleItemId,
       preparationContext: preparationContext,
     );
   }
@@ -179,7 +191,36 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
     final activePlan = widget.planController?.activePlan;
     return activePlan == null
         ? null
-        : InterviewPreparationContext.fromPlan(activePlan);
+        : InterviewPreparationContext.fromPlan(
+            activePlan,
+            selectedScheduleItemId: _selectedScheduleItemId,
+          );
+  }
+
+  void _applyPracticeRequest() {
+    final scheduleItemId = widget.practiceScheduleItemId;
+    final activePlan = widget.planController?.activePlan;
+    if (scheduleItemId == null || activePlan == null) {
+      return;
+    }
+
+    final preparationContext = InterviewPreparationContext.fromPlan(
+      activePlan,
+      selectedScheduleItemId: scheduleItemId,
+    );
+    if (preparationContext.selectedTopic == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedScheduleItemId = scheduleItemId;
+      _level = activePlan.level;
+      _language = activePlan.language;
+      final suggestedStage = preparationContext.suggestedStage;
+      if (suggestedStage != null) {
+        _stage = suggestedStage;
+      }
+    });
   }
 }
 

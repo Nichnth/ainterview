@@ -2,8 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ainterview/models/interview_enums.dart';
 import 'package:ainterview/models/interview_message.dart';
+import 'package:ainterview/models/interview_plan.dart';
+import 'package:ainterview/models/interview_preparation_context.dart';
 import 'package:ainterview/providers/interview_session_controller.dart';
 import 'package:ainterview/services/ai_interview_service.dart';
+import 'package:ainterview/services/interview_plan_generator.dart';
 import 'package:ainterview/services/interview_session_repository.dart';
 
 void main() {
@@ -150,5 +153,56 @@ void main() {
         expect(juniorHrSessions, isEmpty);
       },
     );
+
+    test('saves plan topic metadata for topic-guided sessions', () async {
+      final repository = InMemoryInterviewSessionRepository();
+      final items = InterviewPlanGenerator.generate(
+        today: DateTime(2026, 5, 25),
+        targetDate: DateTime(2026, 6, 15),
+        level: InterviewLevel.junior,
+        language: InterviewLanguage.indonesian,
+      );
+      final focusItem = items.firstWhere(
+        (item) => item.title.contains('State Management'),
+      );
+      final plan = InterviewPlan(
+        id: 'plan_1',
+        targetDate: DateTime(2026, 6, 15),
+        level: InterviewLevel.junior,
+        language: InterviewLanguage.indonesian,
+        createdAt: DateTime.utc(2026, 5, 25),
+        scheduleItems: items,
+      );
+      final context = InterviewPreparationContext.fromPlan(
+        plan,
+        selectedScheduleItemId: focusItem.id,
+      );
+      final controller = InterviewSessionController(
+        aiService: MockAiInterviewService(),
+        sessionRepository: repository,
+        userId: 'user_1',
+      );
+
+      await controller.start(
+        level: plan.level,
+        stage: context.suggestedStage!,
+        language: plan.language,
+        linkedPlanId: plan.id,
+        linkedScheduleItemId: focusItem.id,
+        preparationContext: context,
+      );
+      await controller.sendUserAnswer(
+        'Saya memakai Provider dan BLoC sesuai kebutuhan state aplikasi.',
+      );
+
+      await controller.endAndReview();
+      final sessions = await repository.fetchSessions('user_1');
+
+      expect(sessions, hasLength(1));
+      expect(sessions.single.linkedPlanId, plan.id);
+      expect(sessions.single.linkedScheduleItemId, focusItem.id);
+      expect(sessions.single.preparationFocusTitle, focusItem.title);
+      expect(sessions.single.stage, InterviewStage.technical);
+    });
   });
 }

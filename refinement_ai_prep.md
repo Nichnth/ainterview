@@ -24,13 +24,15 @@ Yang sudah terimplementasi:
 - Plan baru otomatis menjadi selected/active plan.
 - Delete active plan memindahkan selection ke fallback plan atau `null`.
 - App memanggil `loadPlans()` saat main navigation dibuat.
+- Schedule item punya `id` dan `suggestedStage`.
+- User bisa menekan `Practice` dari schedule item untuk membuka interview berbasis topik.
+- Interview dari schedule item menyimpan `linkedScheduleItemId` dan snapshot `preparationFocusTitle`.
+- Stage interview default mengikuti metadata schedule item jika tersedia.
 - Test unit dan widget untuk flow utama sudah tersedia.
 
 Keterbatasan utama:
 
 - Plan dan session runtime masih memakai repository in-memory.
-- Interview belum bisa dimulai dari schedule item tertentu.
-- Stage interview belum otomatis mengikuti jenis schedule item.
 - Regenerate plan berpotensi menghapus progress lama.
 - Rekomendasi review masih perlu dedupe yang lebih kuat.
 - Riwayat interview/review belum tampil di Profile.
@@ -85,31 +87,31 @@ Acceptance criteria:
 
 ### RQ-03: Practice From Schedule Item
 
-Status: **Belum diimplementasikan**.
+Status: **Sudah diimplementasikan**.
 
 User dapat memulai interview dari schedule item tertentu.
 
 Acceptance criteria:
 
-- [ ] Setiap schedule item memiliki action `Practice`.
-- [ ] Action tersebut membuka interview dengan `linkedPlanId` dan `linkedScheduleItemId`.
-- [ ] `InterviewPreparationContext` menyertakan selected schedule item.
-- [ ] AI opening question menyebut atau memprioritaskan selected topic.
-- [ ] Session menyimpan snapshot focus topic agar history tetap valid walau plan berubah.
+- [x] Setiap schedule item memiliki action `Practice`.
+- [x] Action tersebut membuka interview dengan `linkedPlanId` dan `linkedScheduleItemId`.
+- [x] `InterviewPreparationContext` menyertakan selected schedule item.
+- [x] AI opening question menyebut atau memprioritaskan selected topic.
+- [x] Session menyimpan snapshot focus topic agar history tetap valid walau plan berubah.
 
 ### RQ-04: Stage Mapping
 
-Status: **Belum diimplementasikan**.
+Status: **Sudah diimplementasikan**.
 
 Schedule item harus dapat menyarankan stage interview.
 
 Acceptance criteria:
 
-- [ ] Schedule item memiliki metadata `suggestedStage`.
-- [ ] Item HR mengarah ke `InterviewStage.hr`.
-- [ ] Item technical mengarah ke `InterviewStage.technical`.
-- [ ] User tetap bisa override stage sebelum memulai interview.
-- [ ] Jika tidak ada metadata stage, app memakai stage pilihan user saat ini.
+- [x] Schedule item memiliki metadata `suggestedStage`.
+- [x] Item HR mengarah ke `InterviewStage.hr`.
+- [x] Item technical mengarah ke `InterviewStage.technical`.
+- [x] User tetap bisa override stage sebelum memulai interview.
+- [x] Jika tidak ada metadata stage, app memakai stage pilihan user saat ini.
 
 ### RQ-05: Rich Schedule Item Status
 
@@ -222,10 +224,10 @@ Setiap refinement utama perlu test.
 Acceptance criteria:
 
 - [x] Unit test untuk selected active plan.
-- [ ] Unit test untuk preparation context dengan selected schedule item.
+- [x] Unit test untuk preparation context dengan selected schedule item.
 - [ ] Unit test untuk safe regeneration.
 - [ ] Unit test untuk dedupe recommendation.
-- [ ] Widget test untuk `Practice This Topic`.
+- [x] Widget test untuk `Practice This Topic`.
 - [ ] Widget test untuk add review recommendation tanpa duplicate.
 - [ ] Widget test untuk Profile history.
 - [ ] `flutter analyze` selesai tanpa error. Saat ini masih ada info lint/deprecated lama.
@@ -372,22 +374,23 @@ Status: **Selesai untuk scope minimal**.
 
 ### Phase 2: Schedule Item Metadata
 
-Status: **Belum dimulai**.
+Status: **Selesai untuk scope id + suggested stage**.
 
-- [ ] Tambahkan `id`, `suggestedStage`, dan `status` ke `ScheduleItem`.
-- [ ] Pertahankan compatibility dengan `isCompleted`.
-- [ ] Update generator agar memberi id stabil dan suggested stage.
-- [ ] Update progress calculation.
+- [x] Tambahkan `id` dan `suggestedStage` ke `ScheduleItem`.
+- [x] Pertahankan compatibility dengan `isCompleted`.
+- [x] Update generator agar memberi id stabil dan suggested stage.
+- [x] Update progress calculation tetap memakai `isCompleted`.
+- [ ] Rich `status` belum diterapkan karena masih masuk prioritas terpisah.
 
 ### Phase 3: Practice This Topic
 
-Status: **Belum dimulai**.
+Status: **Sudah diimplementasikan**.
 
-- [ ] Tambahkan selected schedule item ke `InterviewPreparationContext`.
-- [ ] Tambahkan action `Practice` pada schedule item.
-- [ ] Hubungkan action ke Interview screen.
-- [ ] Simpan `linkedScheduleItemId` pada session.
-- [ ] Tambahkan widget test opening question yang fokus ke selected topic.
+- [x] Tambahkan selected schedule item ke `InterviewPreparationContext`.
+- [x] Tambahkan action `Practice` pada schedule item.
+- [x] Hubungkan action ke Interview screen.
+- [x] Simpan `linkedScheduleItemId` pada session.
+- [x] Tambahkan widget test opening question yang fokus ke selected topic.
 
 ### Phase 4: Safe Regeneration and Dedupe
 
@@ -504,7 +507,7 @@ P0 adalah pondasi supaya refinement berikutnya tidak dibangun di atas asumsi yan
    - Scope minimum: list plan ringkas, selected state, detail hanya untuk selected plan.
 
 3. **Schedule item id dan suggested stage**
-   - Status: **Belum dikerjakan**.
+   - Status: **Selesai**.
    - Alasan: Practice dari item tertentu butuh identitas item yang stabil, bukan index.
    - Dampak: Membuka jalan ke `Practice This Topic` dan relasi session ke schedule item.
    - Scope minimum: tambah `id`, `suggestedStage`, backward compatibility untuk data lama.
@@ -514,13 +517,13 @@ P0 adalah pondasi supaya refinement berikutnya tidak dibangun di atas asumsi yan
 P1 adalah fitur yang membuat hubungan plan dan interview benar-benar terasa.
 
 4. **Practice from schedule item**
-   - Status: **Belum dikerjakan**.
+   - Status: **Selesai**.
    - Alasan: Ini refinement paling terasa untuk user.
    - Dampak: User bisa mulai interview langsung dari topik preparation.
    - Dependensi: Butuh active plan eksplisit dan schedule item id.
 
 5. **Plan-aware preparation context dengan selected topic**
-   - Status: **Belum dikerjakan**.
+   - Status: **Selesai untuk selected topic**.
    - Alasan: AI perlu tahu topic spesifik yang sedang dilatih.
    - Dampak: Opening question, follow-up, dan review lebih relevan.
    - Dependensi: Dikerjakan bersama atau tepat setelah `Practice from schedule item`.
@@ -594,10 +597,10 @@ Kenapa dulu:
 
 Target:
 
-- [ ] Schedule item id.
-- [ ] Suggested stage.
-- [ ] Practice from schedule item.
-- [ ] Preparation context dengan selected topic.
+- [x] Schedule item id.
+- [x] Suggested stage.
+- [x] Practice from schedule item.
+- [x] Preparation context dengan selected topic.
 
 Kenapa berikutnya:
 
@@ -634,9 +637,9 @@ Kenapa belakangan:
 
 1. [x] Active plan eksplisit.
 2. [x] Multi-plan selection minimal.
-3. [ ] Schedule item id dan suggested stage.
-4. [ ] Practice from schedule item.
-5. [ ] Selected topic di `InterviewPreparationContext`.
+3. [x] Schedule item id dan suggested stage.
+4. [x] Practice from schedule item.
+5. [x] Selected topic di `InterviewPreparationContext`.
 6. [ ] Dedupe review recommendation.
 7. [ ] Safe plan regeneration.
 8. [ ] Rich schedule status.

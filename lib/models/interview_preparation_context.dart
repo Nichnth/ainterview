@@ -11,6 +11,8 @@ class InterviewPreparationContext {
     required this.totalItemCount,
     required this.completedTopics,
     required this.pendingTopics,
+    this.selectedScheduleItemId,
+    this.selectedTopic,
   });
 
   final String planId;
@@ -20,10 +22,18 @@ class InterviewPreparationContext {
   final int totalItemCount;
   final List<InterviewPreparationTopic> completedTopics;
   final List<InterviewPreparationTopic> pendingTopics;
+  final String? selectedScheduleItemId;
+  final InterviewPreparationTopic? selectedTopic;
 
   int get completedItemCount => completedTopics.length;
 
+  InterviewStage? get suggestedStage => selectedTopic?.suggestedStage;
+
   String? get primaryFocusTitle {
+    if (selectedTopic != null) {
+      return selectedTopic!.title;
+    }
+
     if (pendingTopics.isNotEmpty) {
       return pendingTopics.first.title;
     }
@@ -35,12 +45,20 @@ class InterviewPreparationContext {
     return null;
   }
 
-  factory InterviewPreparationContext.fromPlan(InterviewPlan plan) {
+  factory InterviewPreparationContext.fromPlan(
+    InterviewPlan plan, {
+    String? selectedScheduleItemId,
+  }) {
     final completedTopics = <InterviewPreparationTopic>[];
     final pendingTopics = <InterviewPreparationTopic>[];
+    InterviewPreparationTopic? selectedTopic;
 
     for (final item in plan.scheduleItems) {
       final topic = InterviewPreparationTopic.fromScheduleItem(item);
+      if (item.id == selectedScheduleItemId) {
+        selectedTopic = topic;
+      }
+
       if (item.isCompleted) {
         completedTopics.add(topic);
       } else {
@@ -56,6 +74,10 @@ class InterviewPreparationContext {
       totalItemCount: plan.scheduleItems.length,
       completedTopics: List.unmodifiable(completedTopics),
       pendingTopics: List.unmodifiable(pendingTopics),
+      selectedScheduleItemId: selectedTopic == null
+          ? null
+          : selectedScheduleItemId,
+      selectedTopic: selectedTopic,
     );
   }
 
@@ -112,12 +134,16 @@ class InterviewPreparationContext {
 
 class InterviewPreparationTopic {
   const InterviewPreparationTopic({
+    required this.id,
     required this.title,
     required this.description,
+    this.suggestedStage,
   });
 
+  final String id;
   final String title;
   final String description;
+  final InterviewStage? suggestedStage;
 
   String get promptText {
     if (description.trim().isEmpty) {
@@ -129,8 +155,10 @@ class InterviewPreparationTopic {
 
   factory InterviewPreparationTopic.fromScheduleItem(ScheduleItem item) {
     return InterviewPreparationTopic(
+      id: item.id,
       title: item.title,
       description: item.description,
+      suggestedStage: item.suggestedStage,
     );
   }
 }
