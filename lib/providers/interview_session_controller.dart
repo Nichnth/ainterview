@@ -38,6 +38,7 @@ class InterviewSessionController extends ChangeNotifier {
   String? _errorMessage;
   bool _isBusy = false;
   bool _isEnded = false;
+  bool _hasAcceptedCandidateAnswer = false;
 
   List<InterviewMessage> get messages => List.unmodifiable(_messages);
 
@@ -87,6 +88,7 @@ class InterviewSessionController extends ChangeNotifier {
     _review = null;
     _errorMessage = null;
     _isEnded = false;
+    _hasAcceptedCandidateAnswer = false;
     _messages.clear();
     _setBusy(true);
 
@@ -116,25 +118,37 @@ class InterviewSessionController extends ChangeNotifier {
 
   Future<void> sendUserAnswer(String answer) {
     _ensureActiveSession();
+    if (_isBusy) {
+      return Future.value();
+    }
+
     return _sendUserAnswer(answer);
   }
 
   Future<InterviewReview> endAndReview() async {
     _ensureStarted();
+    if (!_hasAcceptedCandidateAnswer) {
+      _errorMessage = 'Please answer at least once before requesting a review.';
+      notifyListeners();
+      throw StateError(_errorMessage!);
+    }
+
     _errorMessage = null;
     _setBusy(true);
 
     try {
-      final generatedReview = await _aiService.reviewInterview(
-        level: _level!,
-        stage: _stage!,
-        language: _language!,
-        messages: messages,
-        preparationContext: _preparationContext,
-      );
+      final generatedReview =
+          _review ??
+          await _aiService.reviewInterview(
+            level: _level!,
+            stage: _stage!,
+            language: _language!,
+            messages: messages,
+            preparationContext: _preparationContext,
+          );
       _review = generatedReview;
-      _isEnded = true;
       await _saveEndedSession(generatedReview);
+      _isEnded = true;
       notifyListeners();
       return generatedReview;
     } catch (error) {
@@ -175,6 +189,7 @@ class InterviewSessionController extends ChangeNotifier {
       return;
     }
 
+    _hasAcceptedCandidateAnswer = true;
     _setBusy(true);
 
     try {
@@ -255,6 +270,25 @@ class InterviewSessionController extends ChangeNotifier {
     }
   }
 
+  void reset() {
+    _messages.clear();
+    _level = null;
+    _stage = null;
+    _language = null;
+    _startedAt = null;
+    _linkedPlanId = null;
+    _linkedScheduleItemId = null;
+    _preparationFocusTitle = null;
+    _preparationContext = null;
+    _currentSession = null;
+    _review = null;
+    _errorMessage = null;
+    _isBusy = false;
+    _isEnded = false;
+    _hasAcceptedCandidateAnswer = false;
+    notifyListeners();
+  }
+
   void _setBusy(bool value) {
     _isBusy = value;
     notifyListeners();
@@ -282,7 +316,7 @@ class InterviewSessionController extends ChangeNotifier {
       return false;
     }
 
-    if (RegExp(r'\b(asdf|qwer|zzzz|lorem|ipsum|test)\b').hasMatch(normalized)) {
+    if (RegExp(r'\b(asdf|qwer|zzzz|lorem|ipsum)\b').hasMatch(normalized)) {
       return false;
     }
 
@@ -304,6 +338,11 @@ class InterviewSessionController extends ChangeNotifier {
       'liburan',
       'cuaca',
       'shopping',
+      'vacation',
+      'movie',
+      'weather',
+      'song',
+      'music',
     ];
     const interviewTerms = [
       'flutter',

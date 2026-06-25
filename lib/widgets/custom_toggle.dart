@@ -27,7 +27,7 @@ class CustomToggle extends StatelessWidget {
           Switch.adaptive(
             value: value,
             onChanged: onChanged,
-            activeColor: AppColors.main,
+            activeThumbColor: AppColors.main,
           ),
         ],
       ),

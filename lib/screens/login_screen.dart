@@ -4,17 +4,61 @@ import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
 import '../services/auth_service.dart';
-import 'main_navigation_wrapper.dart';
 import 'signup_screen.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final emailController = TextEditingController();
-    final passwordController = TextEditingController();
+  State<LoginScreen> createState() => _LoginScreenState();
+}
 
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context, rootNavigator: true);
+
+    if (email.isEmpty || password.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Please enter email and password')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await AuthService.instance.signInWithEmail(
+        email: email,
+        password: password,
+      );
+      if (!mounted) return;
+      navigator.pop();
+    } catch (error) {
+      if (!mounted) return;
+      navigator.pop();
+      messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -31,17 +75,12 @@ class LoginScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              Center(
-                child: Text(
-                  'Log in',
-                  style: AppTextStyles.h1,
-                ),
-              ),
+              Center(child: Text('Log in', style: AppTextStyles.h1)),
               const SizedBox(height: 32),
 
               // Email / Name field
               TextField(
-                controller: emailController,
+                controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   hintText: 'Full Name or email',
@@ -62,12 +101,15 @@ class LoginScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              Text('Ex: Nicholas Abel or nicholasabel@gmail.com', style: AppTextStyles.caption),
+              Text(
+                'Ex: Nicholas Abel or nicholasabel@gmail.com',
+                style: AppTextStyles.caption,
+              ),
               const SizedBox(height: 16),
 
               // Password field
               TextField(
-                controller: passwordController,
+                controller: _passwordController,
                 obscureText: true,
                 decoration: InputDecoration(
                   hintText: 'Password',
@@ -94,29 +136,13 @@ class LoginScreen extends StatelessWidget {
               SizedBox(
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () async {
-                    final email = emailController.text.trim();
-                    final password = passwordController.text;
-                    if (email.isEmpty || password.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter email and password')));
-                      return;
-                    }
-                    try {
-                      showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-                      await AuthService.instance.signInWithEmail(email: email, password: password);
-                      if (context.mounted) {
-                        Navigator.of(context).pop(); // close loading
-                        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const MainNavigationWrapper()));
-                      }
-                    } catch (e) {
-                      if (context.mounted) Navigator.of(context).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-                    }
-                  },
+                  onPressed: _handleLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.main,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+                      borderRadius: BorderRadius.circular(
+                        AppSizes.radiusMedium,
+                      ),
                     ),
                     elevation: 0,
                   ),
@@ -130,7 +156,10 @@ class LoginScreen extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Don\'t have an account? ', style: AppTextStyles.caption),
+                  Text(
+                    'Don\'t have an account? ',
+                    style: AppTextStyles.caption,
+                  ),
                   TextButton(
                     onPressed: () {
                       Navigator.push(
@@ -139,7 +168,7 @@ class LoginScreen extends StatelessWidget {
                       );
                     },
                     child: const Text('Sign up'),
-                  )
+                  ),
                 ],
               ),
 

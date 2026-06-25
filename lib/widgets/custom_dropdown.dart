@@ -36,7 +36,7 @@ class CustomDropdown<T> extends StatelessWidget {
         ),
         AppSizes.vSpaceSmall,
         DropdownButtonFormField<T>(
-          value: value,
+          initialValue: value,
           items: items,
           onChanged: onChanged,
           style: AppTextStyles.bodyLarge,

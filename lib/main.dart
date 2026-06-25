@@ -3,28 +3,37 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
 import 'constants/app_colors.dart';
-import 'providers/interview_plan_controller.dart';
-import 'screens/interview_plan_screen.dart';
-import 'screens/interview_session_screen.dart';
+import 'screens/main_navigation_wrapper.dart';
 import 'screens/splash_screen.dart';
 import 'services/ai_interview_service.dart';
+import 'services/auth_service.dart';
 import 'services/interview_plan_repository.dart';
 import 'services/interview_session_repository.dart';
-import 'services/open_router_ai_interview_service.dart';
 import 'screens/login_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key, this.aiService});
+  const MyApp({
+    super.key,
+    this.aiService,
+    this.authenticatedUserId,
+    this.showSplash = true,
+    this.profilePage,
+    this.planRepository,
+    this.sessionRepository,
+  });
 
   final AiInterviewService? aiService;
+  final String? authenticatedUserId;
+  final bool showSplash;
+  final Widget? profilePage;
+  final InterviewPlanRepository? planRepository;
+  final InterviewSessionRepository? sessionRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -41,15 +50,40 @@ class MyApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: AppColors.background,
       ),
-      home: SplashNavigationWrapper(aiService: aiService),
+      home: showSplash
+          ? SplashNavigationWrapper(
+              aiService: aiService,
+              authenticatedUserId: authenticatedUserId,
+              profilePage: profilePage,
+              planRepository: planRepository,
+              sessionRepository: sessionRepository,
+            )
+          : _AuthGate(
+              aiService: aiService,
+              authenticatedUserId: authenticatedUserId,
+              profilePage: profilePage,
+              planRepository: planRepository,
+              sessionRepository: sessionRepository,
+            ),
     );
   }
 }
 
 class SplashNavigationWrapper extends StatefulWidget {
-  const SplashNavigationWrapper({super.key, this.aiService});
+  const SplashNavigationWrapper({
+    super.key,
+    this.aiService,
+    this.authenticatedUserId,
+    this.profilePage,
+    this.planRepository,
+    this.sessionRepository,
+  });
 
   final AiInterviewService? aiService;
+  final String? authenticatedUserId;
+  final Widget? profilePage;
+  final InterviewPlanRepository? planRepository;
+  final InterviewSessionRepository? sessionRepository;
 
   @override
   State<SplashNavigationWrapper> createState() =>
@@ -70,108 +104,68 @@ class _SplashNavigationWrapperState extends State<SplashNavigationWrapper> {
     if (_showSplash) {
       return SplashScreen(onComplete: _completeSplash);
     }
-    // After splash, we usually go to Login or Home. 
-    // The previous implementation was going to MainNavigationWrapper.
-    // However, typical app flow is Splash -> Login -> Main.
-    // Looking at login_screen.dart, it navigates to MainNavigationWrapper on success.
-    return const LoginScreen();
+    return _AuthGate(
+      aiService: widget.aiService,
+      authenticatedUserId: widget.authenticatedUserId,
+      profilePage: widget.profilePage,
+      planRepository: widget.planRepository,
+      sessionRepository: widget.sessionRepository,
+    );
   }
 }
 
-class MainNavigationWrapper extends StatefulWidget {
-  const MainNavigationWrapper({super.key, this.aiService});
+class _AuthGate extends StatelessWidget {
+  const _AuthGate({
+    required this.aiService,
+    required this.authenticatedUserId,
+    required this.profilePage,
+    required this.planRepository,
+    required this.sessionRepository,
+  });
 
   final AiInterviewService? aiService;
-
-  @override
-  State<MainNavigationWrapper> createState() => _MainNavigationWrapperState();
-}
-
-class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
-  int _currentIndex = 0;
-  int _practiceRequestVersion = 0;
-  String? _practiceScheduleItemId;
-  static const _openRouterApiKey = String.fromEnvironment('OPENROUTER_API_KEY');
-  late final InterviewPlanController _planController;
-  late final InterviewSessionRepository _sessionRepository;
-  late final AiInterviewService _aiService;
-
-  @override
-  void initState() {
-    super.initState();
-    _planController = InterviewPlanController(
-      repository: InMemoryInterviewPlanRepository(),
-      userId: 'demo_user',
-    );
-    _planController.loadPlans();
-    _sessionRepository = InMemoryInterviewSessionRepository();
-    _aiService =
-        widget.aiService ??
-        (_openRouterApiKey.isEmpty
-            ? MissingOpenRouterApiKeyAiInterviewService()
-            : OpenRouterAiInterviewService(apiKey: _openRouterApiKey));
-  }
-
-  @override
-  void dispose() {
-    _planController.dispose();
-    super.dispose();
-  }
+  final String? authenticatedUserId;
+  final Widget? profilePage;
+  final InterviewPlanRepository? planRepository;
+  final InterviewSessionRepository? sessionRepository;
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      InterviewPlanScreen(
-        controller: _planController,
-        onPracticeItem: _startPracticeFromPlanItem,
-      ),
-      InterviewSessionScreen(
-        aiService: _aiService,
-        planController: _planController,
-        sessionRepository: _sessionRepository,
-        practiceScheduleItemId: _practiceScheduleItemId,
-        practiceRequestVersion: _practiceRequestVersion,
-      ),
-      const Center(child: Text('Profile and saved reviews will appear here.')),
-    ];
+    final userIdOverride = authenticatedUserId;
+    if (userIdOverride != null) {
+      return MainNavigationWrapper(
+        userId: userIdOverride,
+        aiService: aiService,
+        profilePage: profilePage,
+        planRepository: planRepository,
+        sessionRepository: sessionRepository,
+      );
+    }
 
-    return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (int index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        backgroundColor: Colors.white,
-        indicatorColor: AppColors.main.withValues(alpha: 0.2),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.event_note_outlined),
-            selectedIcon: Icon(Icons.event_note, color: AppColors.main),
-            label: 'Plan',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble, color: AppColors.main),
-            label: 'Interview',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person, color: AppColors.main),
-            label: 'Profile',
-          ),
-        ],
-      ),
+    return StreamBuilder(
+      stream: AuthService.instance.authStateChanges,
+      initialData: AuthService.instance.currentUser,
+      builder: (context, snapshot) {
+        final user = snapshot.data;
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            user == null) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (user == null) {
+          return const LoginScreen();
+        }
+
+        return MainNavigationWrapper(
+          userId: user.uid,
+          aiService: aiService,
+          profilePage: profilePage,
+          planRepository: planRepository,
+          sessionRepository: sessionRepository,
+        );
+      },
     );
-  }
-
-  void _startPracticeFromPlanItem(String scheduleItemId) {
-    setState(() {
-      _practiceScheduleItemId = scheduleItemId;
-      _practiceRequestVersion += 1;
-      _currentIndex = 1;
-    });
   }
 }

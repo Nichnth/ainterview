@@ -57,4 +57,67 @@ class InterviewSession {
       review: review ?? this.review,
     );
   }
+
+  Map<String, Object?> toMap() {
+    return {
+      'id': id,
+      'level': level.key,
+      'stage': stage.key,
+      'language': language.key,
+      'startedAt': startedAt.toIso8601String(),
+      'endedAt': endedAt?.toIso8601String(),
+      'linkedPlanId': linkedPlanId,
+      'linkedScheduleItemId': linkedScheduleItemId,
+      'preparationFocusTitle': preparationFocusTitle,
+      'messages': messages.map((message) => message.toMap()).toList(),
+      'review': review?.toMap(),
+    };
+  }
+
+  factory InterviewSession.fromMap(String id, Map<String, dynamic> map) {
+    final rawMessages = map['messages'] as List? ?? const [];
+    final rawReview = map['review'];
+
+    return InterviewSession(
+      id: id,
+      level: InterviewLevel.fromLabel(map['level'] as String? ?? ''),
+      stage: InterviewStage.fromLabel(map['stage'] as String? ?? ''),
+      language: InterviewLanguage.fromLabel(map['language'] as String? ?? ''),
+      startedAt: _readDate(map['startedAt']),
+      endedAt: _readNullableDate(map['endedAt']),
+      linkedPlanId: map['linkedPlanId'] as String?,
+      linkedScheduleItemId: map['linkedScheduleItemId'] as String?,
+      preparationFocusTitle: map['preparationFocusTitle'] as String?,
+      messages: rawMessages
+          .map(
+            (message) => InterviewMessage.fromMap(
+              Map<String, dynamic>.from(message as Map),
+            ),
+          )
+          .toList(),
+      review: rawReview is Map
+          ? InterviewReview.fromMap(Map<String, dynamic>.from(rawReview))
+          : null,
+    );
+  }
+
+  static DateTime? _readNullableDate(Object? value) {
+    if (value == null) {
+      return null;
+    }
+
+    return _readDate(value);
+  }
+
+  static DateTime _readDate(Object? value) {
+    if (value is DateTime) {
+      return value;
+    }
+
+    if (value is String) {
+      return DateTime.parse(value);
+    }
+
+    throw ArgumentError('Expected DateTime or ISO-8601 string.');
+  }
 }

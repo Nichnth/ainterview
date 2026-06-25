@@ -11,14 +11,14 @@ class InterviewPlanController extends ChangeNotifier {
   InterviewPlanController({
     required InterviewPlanRepository repository,
     required String userId,
-    DateTime? today,
+    Object? today,
   }) : _repository = repository,
        _userId = userId,
-       _today = today ?? DateTime.now();
+       _today = _clockFromValue(today);
 
   final InterviewPlanRepository _repository;
   final String _userId;
-  final DateTime _today;
+  final DateTime Function() _today;
 
   List<InterviewPlan> _plans = [];
   bool _isLoading = false;
@@ -68,25 +68,27 @@ class InterviewPlanController extends ChangeNotifier {
     required InterviewLevel level,
     required InterviewLanguage language,
   }) async {
-    final plan = InterviewPlan(
-      id: '',
-      targetDate: targetDate,
-      level: level,
-      language: language,
-      createdAt: DateTime.now().toUtc(),
-      scheduleItems: InterviewPlanGenerator.generate(
-        today: _today,
+    return _runMutation(() async {
+      final plan = InterviewPlan(
+        id: '',
         targetDate: targetDate,
         level: level,
         language: language,
-      ),
-    );
+        createdAt: DateTime.now().toUtc(),
+        scheduleItems: InterviewPlanGenerator.generate(
+          today: _today(),
+          targetDate: targetDate,
+          level: level,
+          language: language,
+        ),
+      );
 
-    final savedPlan = await _repository.savePlan(_userId, plan);
-    _upsertPlan(savedPlan);
-    _selectedPlanId = savedPlan.id;
-    notifyListeners();
-    return savedPlan;
+      final savedPlan = await _repository.savePlan(_userId, plan);
+      _upsertPlan(savedPlan);
+      _selectedPlanId = savedPlan.id;
+      notifyListeners();
+      return savedPlan;
+    });
   }
 
   Future<InterviewPlan> updatePlan(
@@ -95,22 +97,36 @@ class InterviewPlanController extends ChangeNotifier {
     required InterviewLevel level,
     required InterviewLanguage language,
   }) async {
-    final currentPlan = _findPlan(planId);
-    final updatedPlan = currentPlan.copyWith(
-      targetDate: targetDate,
-      level: level,
-      language: language,
-      scheduleItems: InterviewPlanGenerator.generate(
-        today: _today,
+    return _runMutation(() async {
+      final currentPlan = _findPlan(planId);
+      final generatedItems = InterviewPlanGenerator.generate(
+        today: _today(),
         targetDate: targetDate,
         level: level,
         language: language,
-      ),
-    );
+      );
+      final previousItemsById = {
+        for (final item in currentPlan.scheduleItems) item.id: item,
+      };
+      final updatedItems = [
+        for (final item in generatedItems)
+          item.copyWith(isCompleted: previousItemsById[item.id]?.isCompleted),
+        for (final item in currentPlan.scheduleItems)
+          if (item.sourceReviewId != null ||
+              item.sourceRecommendationId != null)
+            item,
+      ];
+      final updatedPlan = currentPlan.copyWith(
+        targetDate: targetDate,
+        level: level,
+        language: language,
+        scheduleItems: updatedItems,
+      );
 
-    final savedPlan = await _repository.savePlan(_userId, updatedPlan);
-    _upsertPlan(savedPlan);
-    return savedPlan;
+      final savedPlan = await _repository.savePlan(_userId, updatedPlan);
+      _upsertPlan(savedPlan);
+      return savedPlan;
+    });
   }
 
   void selectPlan(String planId) {
@@ -124,26 +140,32 @@ class InterviewPlanController extends ChangeNotifier {
     required int itemIndex,
     required bool isCompleted,
   }) async {
-    final currentPlan = _findPlan(planId);
-    if (itemIndex < 0 || itemIndex >= currentPlan.scheduleItems.length) {
-      throw RangeError.index(itemIndex, currentPlan.scheduleItems, 'itemIndex');
-    }
+    return _runMutation(() async {
+      final currentPlan = _findPlan(planId);
+      if (itemIndex < 0 || itemIndex >= currentPlan.scheduleItems.length) {
+        throw RangeError.index(
+          itemIndex,
+          currentPlan.scheduleItems,
+          'itemIndex',
+        );
+      }
 
-    final updatedItems = <ScheduleItem>[
-      for (var index = 0; index < currentPlan.scheduleItems.length; index++)
-        index == itemIndex
-            ? currentPlan.scheduleItems[index].copyWith(
-                isCompleted: isCompleted,
-              )
-            : currentPlan.scheduleItems[index],
-    ];
+      final updatedItems = <ScheduleItem>[
+        for (var index = 0; index < currentPlan.scheduleItems.length; index++)
+          index == itemIndex
+              ? currentPlan.scheduleItems[index].copyWith(
+                  isCompleted: isCompleted,
+                )
+              : currentPlan.scheduleItems[index],
+      ];
 
-    final savedPlan = await _repository.savePlan(
-      _userId,
-      currentPlan.copyWith(scheduleItems: updatedItems),
-    );
-    _upsertPlan(savedPlan);
-    return savedPlan;
+      final savedPlan = await _repository.savePlan(
+        _userId,
+        currentPlan.copyWith(scheduleItems: updatedItems),
+      );
+      _upsertPlan(savedPlan);
+      return savedPlan;
+    });
   }
 
   Future<InterviewPlan> appendReviewRecommendations(
@@ -151,48 +173,68 @@ class InterviewPlanController extends ChangeNotifier {
     required String reviewId,
     required List<ReviewRecommendation> recommendations,
   }) async {
-    final currentPlan = _findPlan(planId);
-    if (recommendations.isEmpty) {
-      return currentPlan;
-    }
+    return _runMutation(() async {
+      final currentPlan = _findPlan(planId);
+      if (recommendations.isEmpty) {
+        return currentPlan;
+      }
 
-    final lastDayOffset = currentPlan.scheduleItems.isEmpty
-        ? 0
-        : currentPlan.scheduleItems
-              .map((item) => item.dayOffset)
-              .reduce((first, second) => first > second ? first : second);
-    final recommendationItems = [
-      for (var index = 0; index < recommendations.length; index++)
-        ScheduleItem(
-          id: 'review_${reviewId}_${recommendations[index].id}',
-          dayOffset: lastDayOffset + index + 1,
-          title: recommendations[index].title,
-          description: recommendations[index].description,
-          suggestedStage: recommendations[index].stage,
-          sourceReviewId: reviewId,
-          sourceRecommendationId: recommendations[index].id,
+      final lastDayOffset = currentPlan.scheduleItems.isEmpty
+          ? 0
+          : currentPlan.scheduleItems
+                .map((item) => item.dayOffset)
+                .reduce((first, second) => first > second ? first : second);
+      final existingRecommendationKeys = currentPlan.scheduleItems
+          .map(
+            (item) => '${item.sourceReviewId}:${item.sourceRecommendationId}',
+          )
+          .toSet();
+      final recommendationItems = <ScheduleItem>[];
+      final seenRecommendationKeys = {...existingRecommendationKeys};
+      for (final recommendation in recommendations) {
+        final key = '$reviewId:${recommendation.id}';
+        if (!seenRecommendationKeys.add(key)) {
+          continue;
+        }
+
+        recommendationItems.add(
+          ScheduleItem(
+            id: 'review_${reviewId}_${recommendation.id}',
+            dayOffset: lastDayOffset + recommendationItems.length + 1,
+            title: recommendation.title,
+            description: recommendation.description,
+            suggestedStage: recommendation.stage,
+            sourceReviewId: reviewId,
+            sourceRecommendationId: recommendation.id,
+          ),
+        );
+      }
+      if (recommendationItems.isEmpty) {
+        return currentPlan;
+      }
+
+      final savedPlan = await _repository.savePlan(
+        _userId,
+        currentPlan.copyWith(
+          scheduleItems: [...currentPlan.scheduleItems, ...recommendationItems],
         ),
-    ];
-
-    final savedPlan = await _repository.savePlan(
-      _userId,
-      currentPlan.copyWith(
-        scheduleItems: [...currentPlan.scheduleItems, ...recommendationItems],
-      ),
-    );
-    _upsertPlan(savedPlan);
-    return savedPlan;
+      );
+      _upsertPlan(savedPlan);
+      return savedPlan;
+    });
   }
 
   Future<void> deletePlan(String planId) async {
-    await _repository.deletePlan(_userId, planId);
-    _plans = _plans.where((plan) => plan.id != planId).toList();
-    if (_selectedPlanId == planId) {
-      _selectedPlanId = _plans.isEmpty ? null : _plans.first.id;
-    } else {
-      _syncSelectedPlan();
-    }
-    notifyListeners();
+    await _runMutation(() async {
+      await _repository.deletePlan(_userId, planId);
+      _plans = _plans.where((plan) => plan.id != planId).toList();
+      if (_selectedPlanId == planId) {
+        _selectedPlanId = _plans.isEmpty ? null : _plans.first.id;
+      } else {
+        _syncSelectedPlan();
+      }
+      notifyListeners();
+    });
   }
 
   InterviewPlan _findPlan(String planId) {
@@ -238,5 +280,32 @@ class InterviewPlanController extends ChangeNotifier {
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
+  }
+
+  Future<T> _runMutation<T>(Future<T> Function() mutation) async {
+    _setLoading(true);
+    try {
+      final result = await mutation();
+      _errorMessage = null;
+      return result;
+    } catch (error) {
+      _errorMessage = error.toString();
+      notifyListeners();
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  static DateTime Function() _clockFromValue(Object? today) {
+    if (today is DateTime Function()) {
+      return today;
+    }
+
+    if (today is DateTime) {
+      return () => today;
+    }
+
+    return DateTime.now;
   }
 }

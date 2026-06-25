@@ -3,16 +3,18 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ainterview/models/interview_enums.dart';
 import 'package:ainterview/models/interview_message.dart';
+import 'package:ainterview/models/interview_plan.dart';
 import 'package:ainterview/models/interview_preparation_context.dart';
 import 'package:ainterview/models/interview_review.dart';
 import 'package:ainterview/main.dart';
 import 'package:ainterview/screens/interview_session_screen.dart';
 import 'package:ainterview/services/ai_interview_service.dart';
+import 'package:ainterview/services/interview_plan_repository.dart';
+import 'package:ainterview/services/interview_session_repository.dart';
 
 void main() {
   testWidgets('creates a practice plan from the main screen', (tester) async {
-    await tester.pumpWidget(const MyApp());
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await _pumpAuthenticatedApp(tester);
 
     expect(find.text('AI Interview'), findsOneWidget);
     expect(find.text('Interview Plan'), findsWidgets);
@@ -26,8 +28,7 @@ void main() {
   });
 
   testWidgets('runs a text interview session and shows review', (tester) async {
-    await tester.pumpWidget(MyApp(aiService: MockAiInterviewService()));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await _pumpAuthenticatedApp(tester);
 
     await tester.tap(find.text('Interview'));
     await tester.pumpAndSettle();
@@ -60,8 +61,7 @@ void main() {
   testWidgets('active preparation progress influences the interview opening', (
     tester,
   ) async {
-    await tester.pumpWidget(MyApp(aiService: MockAiInterviewService()));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await _pumpAuthenticatedApp(tester);
 
     await tester.tap(find.text('Generate Practice Plan'));
     await tester.pumpAndSettle();
@@ -86,8 +86,7 @@ void main() {
   testWidgets('starts a technical interview from a selected plan topic', (
     tester,
   ) async {
-    await tester.pumpWidget(MyApp(aiService: MockAiInterviewService()));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await _pumpAuthenticatedApp(tester);
 
     await tester.tap(find.text('Generate Practice Plan'));
     await tester.pumpAndSettle();
@@ -121,11 +120,20 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: InterviewSessionScreen(aiService: _ReviewFailureAiService()),
+        home: InterviewSessionScreen(
+          aiService: _ReviewFailureAiService(),
+          userId: 'test_user',
+        ),
       ),
     );
 
     await tester.tap(find.text('Start AI Interview'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextField),
+      'I handled a project deadline with team communication.',
+    );
+    await tester.tap(find.byIcon(Icons.send));
     await tester.pumpAndSettle();
     await tester.tap(find.text('End Interview & Get Review'));
     await tester.pumpAndSettle();
@@ -137,8 +145,7 @@ void main() {
   testWidgets('adds review recommendations to the active interview plan', (
     tester,
   ) async {
-    await tester.pumpWidget(MyApp(aiService: MockAiInterviewService()));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await _pumpAuthenticatedApp(tester);
 
     await tester.tap(find.text('Generate Practice Plan'));
     await tester.pumpAndSettle();
@@ -174,6 +181,40 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('plan save errors are rendered without uncaught UI exceptions', (
+    tester,
+  ) async {
+    await _pumpAuthenticatedApp(
+      tester,
+      planRepository: _FailingSavePlanRepository(),
+    );
+
+    await tester.tap(find.text('Generate Practice Plan'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('Could not load plans'), findsOneWidget);
+    expect(find.textContaining('Plan save unavailable'), findsOneWidget);
+  });
+}
+
+Future<void> _pumpAuthenticatedApp(
+  WidgetTester tester, {
+  AiInterviewService? aiService,
+  InterviewPlanRepository? planRepository,
+}) async {
+  await tester.pumpWidget(
+    MyApp(
+      aiService: aiService ?? MockAiInterviewService(),
+      authenticatedUserId: 'test_user',
+      showSplash: false,
+      profilePage: const SizedBox.shrink(),
+      planRepository: planRepository ?? InMemoryInterviewPlanRepository(),
+      sessionRepository: InMemoryInterviewSessionRepository(),
+    ),
+  );
+  await tester.pumpAndSettle();
 }
 
 class _ReviewFailureAiService implements AiInterviewService {
@@ -208,4 +249,19 @@ class _ReviewFailureAiService implements AiInterviewService {
   }) {
     throw Exception('Review service unavailable');
   }
+}
+
+class _FailingSavePlanRepository implements InterviewPlanRepository {
+  @override
+  Future<List<InterviewPlan>> fetchPlans(String userId) async {
+    return const [];
+  }
+
+  @override
+  Future<InterviewPlan> savePlan(String userId, InterviewPlan plan) {
+    throw Exception('Plan save unavailable');
+  }
+
+  @override
+  Future<void> deletePlan(String userId, String planId) async {}
 }

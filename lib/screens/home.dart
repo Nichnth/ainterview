@@ -122,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildSectionTitle('4. Pin Input Field (6 Kotak)'),
             Text('Status Normal:', style: AppTextStyles.caption),
             AppSizes.vSpaceSmall,
-            PinInputField(onCompleted: (pin) => print('PIN: $pin')),
+            PinInputField(onCompleted: (pin) => debugPrint('PIN: $pin')),
             AppSizes.vSpaceSmall,
             Text('Status Error:', style: AppTextStyles.caption),
             AppSizes.vSpaceSmall,

@@ -34,6 +34,13 @@ void main() {
         isTrue,
       );
 
+      final completedBeforeUpdate = await controller.toggleScheduleItem(
+        created.id,
+        itemIndex: 0,
+        isCompleted: true,
+      );
+      expect(completedBeforeUpdate.scheduleItems.first.isCompleted, isTrue);
+
       final updated = await controller.updatePlan(
         created.id,
         targetDate: DateTime(2026, 6, 1),
@@ -43,7 +50,7 @@ void main() {
 
       expect(updated.level, InterviewLevel.senior);
       expect(updated.language, InterviewLanguage.english);
-      expect(updated.scheduleItems.every((item) => !item.isCompleted), isTrue);
+      expect(updated.scheduleItems.first.isCompleted, isTrue);
       expect(
         updated.scheduleItems.any(
           (item) => item.title.contains('Architecture'),
@@ -214,6 +221,72 @@ void main() {
       expect(controller.plans, isEmpty);
       expect(controller.selectedPlanId, isNull);
       expect(controller.selectedPlan, isNull);
+    });
+
+    test('uses the current clock when generating each new plan', () async {
+      var today = DateTime(2026, 5, 25);
+      final repository = InMemoryInterviewPlanRepository();
+      final controller = InterviewPlanController(
+        repository: repository,
+        userId: 'user_1',
+        today: () => today,
+      );
+
+      final first = await controller.createPlan(
+        targetDate: DateTime(2026, 6, 15),
+        level: InterviewLevel.junior,
+        language: InterviewLanguage.indonesian,
+      );
+      today = DateTime(2026, 6, 14);
+      final second = await controller.createPlan(
+        targetDate: DateTime(2026, 6, 15),
+        level: InterviewLevel.junior,
+        language: InterviewLanguage.indonesian,
+      );
+
+      expect(first.scheduleItems.last.dayOffset, greaterThan(1));
+      expect(second.scheduleItems.every((item) => item.dayOffset == 1), isTrue);
+    });
+
+    test('does not append the same review recommendations twice', () async {
+      final repository = InMemoryInterviewPlanRepository();
+      final controller = InterviewPlanController(
+        repository: repository,
+        userId: 'user_1',
+        today: DateTime(2026, 5, 25),
+      );
+      final plan = await controller.createPlan(
+        targetDate: DateTime(2026, 6, 15),
+        level: InterviewLevel.junior,
+        language: InterviewLanguage.indonesian,
+      );
+      const recommendations = [
+        ReviewRecommendation(
+          id: 'recommendation_1',
+          title: 'Retry drill',
+          description: 'Practice retry and failure states.',
+          level: InterviewLevel.junior,
+          stage: InterviewStage.technical,
+        ),
+      ];
+
+      await controller.appendReviewRecommendations(
+        plan.id,
+        reviewId: 'review_1',
+        recommendations: recommendations,
+      );
+      final updatedAgain = await controller.appendReviewRecommendations(
+        plan.id,
+        reviewId: 'review_1',
+        recommendations: recommendations,
+      );
+
+      expect(
+        updatedAgain.scheduleItems
+            .where((item) => item.sourceReviewId == 'review_1')
+            .length,
+        1,
+      );
     });
   });
 }

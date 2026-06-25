@@ -20,6 +20,7 @@ class InterviewSessionScreen extends StatefulWidget {
   const InterviewSessionScreen({
     super.key,
     required this.aiService,
+    required this.userId,
     this.planController,
     this.sessionRepository,
     this.practiceScheduleItemId,
@@ -27,6 +28,7 @@ class InterviewSessionScreen extends StatefulWidget {
   });
 
   final AiInterviewService aiService;
+  final String userId;
   final InterviewPlanController? planController;
   final InterviewSessionRepository? sessionRepository;
   final String? practiceScheduleItemId;
@@ -50,6 +52,7 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
     _controller = InterviewSessionController(
       aiService: widget.aiService,
       sessionRepository: widget.sessionRepository,
+      userId: widget.userId,
     );
   }
 
@@ -96,8 +99,8 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
   Future<void> _sendAnswer() async {
     FocusScope.of(context).unfocus();
     final answer = _answerController.text;
-    _answerController.clear();
     await _controller.sendUserAnswer(answer);
+    _answerController.clear();
   }
 
   void _endSession() {
@@ -122,11 +125,15 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
       return;
     }
 
-    await planController.appendReviewRecommendations(
-      activePlan.id,
-      reviewId: review.id,
-      recommendations: review.recommendations,
-    );
+    try {
+      await planController.appendReviewRecommendations(
+        activePlan.id,
+        reviewId: review.id,
+        recommendations: review.recommendations,
+      );
+    } catch (_) {
+      return;
+    }
 
     if (mounted) {
       setState(() {});
@@ -213,6 +220,10 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
     }
 
     setState(() {
+      if (_controller.messages.isNotEmpty) {
+        _controller.reset();
+        _answerController.clear();
+      }
       _selectedScheduleItemId = scheduleItemId;
       _level = activePlan.level;
       _language = activePlan.language;
@@ -423,6 +434,7 @@ class _SessionView extends StatelessWidget {
                     Expanded(
                       child: TextField(
                         controller: answerController,
+                        readOnly: controller.isBusy || controller.isEnded,
                         decoration: InputDecoration(
                           hintText: 'Type your answer',
                           hintStyle: AppTextStyles.bodyMedium.copyWith(

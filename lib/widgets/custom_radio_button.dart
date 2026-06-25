@@ -22,11 +22,16 @@ class CustomRadioButton<T> extends StatelessWidget {
 
     return Row(
       children: [
-        Radio<T>(
-          value: value,
-          groupValue: groupValue,
-          onChanged: onChanged,
-          activeColor: AppColors.main,
+        IgnorePointer(
+          ignoring: !isEnabled,
+          child: RadioGroup<T>(
+            groupValue: groupValue,
+            onChanged: (value) => onChanged?.call(value),
+            child: Radio<T>(
+              value: value,
+              activeColor: AppColors.main,
+            ),
+          ),
         ),
         Text(
           label,

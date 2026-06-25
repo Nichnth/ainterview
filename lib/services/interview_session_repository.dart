@@ -8,6 +8,8 @@ abstract class InterviewSessionRepository {
     String userId, {
     InterviewLevel? level,
     InterviewStage? stage,
+    bool completedOnly = false,
+    int? limit,
   });
 }
 
@@ -42,17 +44,25 @@ class InMemoryInterviewSessionRepository implements InterviewSessionRepository {
     String userId, {
     InterviewLevel? level,
     InterviewStage? stage,
+    bool completedOnly = false,
+    int? limit,
   }) async {
     final sessions = [...?_sessionsByUser[userId]];
     final filteredSessions =
         sessions.where((session) {
           final matchesLevel = level == null || session.level == level;
           final matchesStage = stage == null || session.stage == stage;
-          return matchesLevel && matchesStage;
-        }).toList()..sort(
-          (first, second) => second.startedAt.compareTo(first.startedAt),
-        );
+          final matchesCompletion = !completedOnly || session.endedAt != null;
+          return matchesLevel && matchesStage && matchesCompletion;
+        }).toList()..sort((first, second) {
+          final firstSortDate = first.endedAt ?? first.startedAt;
+          final secondSortDate = second.endedAt ?? second.startedAt;
+          return secondSortDate.compareTo(firstSortDate);
+        });
 
-    return List.unmodifiable(filteredSessions);
+    final boundedSessions = limit == null
+        ? filteredSessions
+        : filteredSessions.take(limit).toList();
+    return List.unmodifiable(boundedSessions);
   }
 }

@@ -31,8 +31,8 @@ void main() {
       final map = plan.toMap();
 
       expect(map['targetDate'], targetDate.toIso8601String());
-      expect(map['level'], 'Junior Dev');
-      expect(map['language'], 'Indonesian');
+      expect(map['level'], 'junior');
+      expect(map['language'], 'indonesian');
       expect(map['createdAt'], createdAt.toIso8601String());
       expect(map['scheduleItems'], isA<List<Map<String, Object?>>>());
 

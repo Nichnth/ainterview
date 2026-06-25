@@ -29,6 +29,7 @@ class _InterviewPlanScreenState extends State<InterviewPlanScreen> {
   late DateTime _targetDate;
   InterviewLevel _level = InterviewLevel.junior;
   InterviewLanguage _language = InterviewLanguage.indonesian;
+  String? _editingPlanId;
 
   @override
   void initState() {
@@ -50,11 +51,47 @@ class _InterviewPlanScreenState extends State<InterviewPlanScreen> {
   }
 
   Future<void> _savePlan() async {
-    await widget.controller.createPlan(
-      targetDate: _targetDate,
-      level: _level,
-      language: _language,
-    );
+    try {
+      final editingPlanId = _editingPlanId;
+      if (editingPlanId == null) {
+        await widget.controller.createPlan(
+          targetDate: _targetDate,
+          level: _level,
+          language: _language,
+        );
+        return;
+      }
+
+      await widget.controller.updatePlan(
+        editingPlanId,
+        targetDate: _targetDate,
+        level: _level,
+        language: _language,
+      );
+      if (mounted) {
+        setState(() => _editingPlanId = null);
+      }
+    } catch (_) {
+      // The controller exposes mutation failures through errorMessage.
+    }
+  }
+
+  void _beginEditPlan(InterviewPlan plan) {
+    setState(() {
+      _editingPlanId = plan.id;
+      _targetDate = plan.targetDate;
+      _level = plan.level;
+      _language = plan.language;
+    });
+  }
+
+  void _cancelEditPlan() {
+    setState(() {
+      _editingPlanId = null;
+      _targetDate = DateTime.now().add(const Duration(days: 14));
+      _level = InterviewLevel.junior;
+      _language = InterviewLanguage.indonesian;
+    });
   }
 
   @override
@@ -99,6 +136,8 @@ class _InterviewPlanScreenState extends State<InterviewPlanScreen> {
                     if (language != null) setState(() => _language = language);
                   },
                   onSave: _savePlan,
+                  isEditing: _editingPlanId != null,
+                  onCancelEdit: _editingPlanId == null ? null : _cancelEditPlan,
                 ),
                 AppSizes.vSpaceLarge,
                 if (widget.controller.isLoading)
@@ -119,6 +158,7 @@ class _InterviewPlanScreenState extends State<InterviewPlanScreen> {
                       plan: widget.controller.selectedPlan!,
                       controller: widget.controller,
                       onPracticeItem: widget.onPracticeItem,
+                      onEdit: _beginEditPlan,
                     ),
                 ],
               ],
@@ -140,6 +180,8 @@ class _PlanForm extends StatelessWidget {
     required this.onLevelChanged,
     required this.onLanguageChanged,
     required this.onSave,
+    required this.isEditing,
+    required this.onCancelEdit,
   });
 
   final DateTime targetDate;
@@ -150,6 +192,8 @@ class _PlanForm extends StatelessWidget {
   final ValueChanged<InterviewLevel?> onLevelChanged;
   final ValueChanged<InterviewLanguage?> onLanguageChanged;
   final VoidCallback onSave;
+  final bool isEditing;
+  final VoidCallback? onCancelEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -191,9 +235,24 @@ class _PlanForm extends StatelessWidget {
             onChanged: onLanguageChanged,
           ),
           AppSizes.vSpaceLarge,
-          CustomButton(
-            text: 'Generate Practice Plan',
-            onPressed: isLoading ? null : onSave,
+          Row(
+            children: [
+              Expanded(
+                child: CustomButton(
+                  text: isEditing
+                      ? 'Update Practice Plan'
+                      : 'Generate Practice Plan',
+                  onPressed: isLoading ? null : onSave,
+                ),
+              ),
+              if (onCancelEdit != null) ...[
+                AppSizes.hSpaceSmall,
+                TextButton(
+                  onPressed: isLoading ? null : onCancelEdit,
+                  child: const Text('Cancel'),
+                ),
+              ],
+            ],
           ),
         ],
       ),
@@ -304,18 +363,17 @@ class _PlanDetail extends StatelessWidget {
     required this.plan,
     required this.controller,
     required this.onPracticeItem,
+    required this.onEdit,
   });
 
   final InterviewPlan plan;
   final InterviewPlanController controller;
   final ValueChanged<String>? onPracticeItem;
+  final ValueChanged<InterviewPlan> onEdit;
 
   @override
   Widget build(BuildContext context) {
-    final remainingDays = plan.targetDate
-        .difference(DateTime.now())
-        .inDays
-        .clamp(0, 999);
+    final remainingDays = _daysUntil(plan.targetDate);
     final completedCount = plan.scheduleItems
         .where((item) => item.isCompleted)
         .length;
@@ -343,10 +401,26 @@ class _PlanDetail extends StatelessWidget {
                   ],
                 ),
               ),
-              TextButton.icon(
-                onPressed: () => controller.deletePlan(plan.id),
-                icon: const Icon(Icons.delete_outline, size: 18),
-                label: const Text('Delete'),
+              Wrap(
+                spacing: AppSizes.pSmall,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => onEdit(plan),
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: const Text('Edit'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () async {
+                      try {
+                        await controller.deletePlan(plan.id);
+                      } catch (_) {
+                        // The controller exposes mutation failures.
+                      }
+                    },
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    label: const Text('Delete'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -366,11 +440,17 @@ class _PlanDetail extends StatelessWidget {
               _ScheduleTile(
                 itemNumber: index + 1,
                 item: plan.scheduleItems[index],
-                onChanged: (value) => controller.toggleScheduleItem(
-                  plan.id,
-                  itemIndex: index,
-                  isCompleted: value ?? false,
-                ),
+                onChanged: (value) async {
+                  try {
+                    await controller.toggleScheduleItem(
+                      plan.id,
+                      itemIndex: index,
+                      isCompleted: value ?? false,
+                    );
+                  } catch (_) {
+                    // The controller exposes mutation failures.
+                  }
+                },
                 onPractice: onPracticeItem == null
                     ? null
                     : () => onPracticeItem!(plan.scheduleItems[index].id),
@@ -536,4 +616,11 @@ class _Surface extends StatelessWidget {
 
 String _formatDate(DateTime date) {
   return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+}
+
+int _daysUntil(DateTime date) {
+  final today = DateTime.now();
+  final normalizedToday = DateTime(today.year, today.month, today.day);
+  final normalizedTarget = DateTime(date.year, date.month, date.day);
+  return normalizedTarget.difference(normalizedToday).inDays.clamp(0, 999);
 }

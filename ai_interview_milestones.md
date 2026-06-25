@@ -153,13 +153,13 @@ Membangun sesi mock interview berbasis teks untuk HR dan Technical stage di seti
 
 ### OpenRouter Model Routing
 
-Model yang digunakan untuk sesi interview:
+Model yang digunakan untuk sesi interview diambil dari katalog OpenRouter saat runtime:
 
-1. `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`
-2. `google/gemma-4-31b-it:free`
-3. `google/gemma-4-26b-a4b-it:free`
+- Service memanggil `GET /api/v1/models` dan memfilter model text chat gratis.
+- Service mencoba semua model gratis yang tersedia secara berurutan.
+- Jika discovery katalog gagal, service fallback ke router `openrouter/free`.
 
-Service mencoba model secara berurutan. Jika model pertama gagal karena rate limit atau error provider, service fallback ke model berikutnya.
+Jika sebuah model gagal karena rate limit atau error provider, service fallback ke model gratis berikutnya.
 
 Untuk menjalankan app dengan OpenRouter:
 

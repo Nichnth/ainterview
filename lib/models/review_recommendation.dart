@@ -45,8 +45,8 @@ class ReviewRecommendation {
       'id': id,
       'title': title,
       'description': description,
-      'level': level.label,
-      'stage': stage.label,
+      'level': level.key,
+      'stage': stage.key,
       'linkedPlanId': linkedPlanId,
       'linkedScheduleItemIndex': linkedScheduleItemIndex,
     };
@@ -60,7 +60,23 @@ class ReviewRecommendation {
       level: InterviewLevel.fromLabel(map['level'] as String? ?? ''),
       stage: InterviewStage.fromLabel(map['stage'] as String? ?? ''),
       linkedPlanId: map['linkedPlanId'] as String?,
-      linkedScheduleItemIndex: map['linkedScheduleItemIndex'] as int?,
+      linkedScheduleItemIndex: _readNullableInt(map['linkedScheduleItemIndex']),
     );
+  }
+
+  static int? _readNullableInt(Object? value) {
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    if (value is String) {
+      return int.tryParse(value);
+    }
+
+    return null;
   }
 }

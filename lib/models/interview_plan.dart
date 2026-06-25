@@ -50,8 +50,8 @@ class InterviewPlan {
   Map<String, Object> toMap() {
     return {
       'targetDate': targetDate.toIso8601String(),
-      'level': level.label,
-      'language': language.label,
+      'level': level.key,
+      'language': language.key,
       'createdAt': createdAt.toIso8601String(),
       'scheduleItems': scheduleItems.map((item) => item.toMap()).toList(),
     };

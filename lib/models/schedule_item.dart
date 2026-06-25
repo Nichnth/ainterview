@@ -50,7 +50,7 @@ class ScheduleItem {
       'dayOffset': dayOffset,
       'title': title,
       'description': description,
-      'suggestedStage': suggestedStage?.label,
+      'suggestedStage': suggestedStage?.key,
       'isCompleted': isCompleted,
       'sourceReviewId': sourceReviewId,
       'sourceRecommendationId': sourceRecommendationId,
@@ -61,7 +61,7 @@ class ScheduleItem {
     final title = map['title'] as String? ?? '';
     return ScheduleItem(
       id: map['id'] as String? ?? stableId(title),
-      dayOffset: map['dayOffset'] as int? ?? 1,
+      dayOffset: _readInt(map['dayOffset']) ?? 1,
       title: title,
       description: map['description'] as String? ?? '',
       suggestedStage: _stageFromValue(map['suggestedStage']),
@@ -80,17 +80,29 @@ class ScheduleItem {
     return normalized.isEmpty ? 'schedule_item' : normalized;
   }
 
+  static int? _readInt(Object? value) {
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    if (value is String) {
+      return int.tryParse(value);
+    }
+
+    return null;
+  }
+
   static InterviewStage? _stageFromValue(Object? value) {
     if (value is InterviewStage) {
       return value;
     }
 
     if (value is String && value.trim().isNotEmpty) {
-      for (final stage in InterviewStage.values) {
-        if (stage.label == value) {
-          return stage;
-        }
-      }
+      return InterviewStage.tryFromLabel(value);
     }
 
     return null;

@@ -29,9 +29,9 @@ class InterviewReview {
   Map<String, Object> toMap() {
     return {
       'id': id,
-      'level': level.label,
-      'stage': stage.label,
-      'language': language.label,
+      'level': level.key,
+      'stage': stage.key,
+      'language': language.key,
       'createdAt': createdAt.toIso8601String(),
       'summary': summary,
       'communicationFeedback': communicationFeedback,
