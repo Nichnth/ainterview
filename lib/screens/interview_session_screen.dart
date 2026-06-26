@@ -363,7 +363,7 @@ class _SessionView extends StatelessWidget {
             child: Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: AppColors.main.withValues(alpha: 0.14),
+                  backgroundColor: AppColors.main.withOpacity(0.14),
                   child: const Icon(
                     Icons.smart_toy_outlined,
                     color: AppColors.main,
@@ -647,8 +647,8 @@ class _ErrorBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.danger.withValues(alpha: 0.08),
-        border: Border.all(color: AppColors.danger.withValues(alpha: 0.35)),
+        color: AppColors.danger.withOpacity(0.08),
+        border: Border.all(color: AppColors.danger.withOpacity(0.35)),
         borderRadius: BorderRadius.circular(AppSizes.radiusSmall),
       ),
       child: Padding(

@@ -3,15 +3,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
 import 'constants/app_colors.dart';
-import 'providers/interview_plan_controller.dart';
-import 'screens/interview_plan_screen.dart';
-import 'screens/interview_session_screen.dart';
-import 'screens/splash_screen.dart';
+import 'screens/main_navigation_wrapper.dart';
 import 'services/ai_interview_service.dart';
-import 'services/interview_plan_repository.dart';
-import 'services/interview_session_repository.dart';
-import 'services/open_router_ai_interview_service.dart';
-import 'screens/login_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,137 +34,8 @@ class MyApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: AppColors.background,
       ),
+      // Menggunakan wrapper yang benar dari folder screens
       home: SplashNavigationWrapper(aiService: aiService),
     );
-  }
-}
-
-class SplashNavigationWrapper extends StatefulWidget {
-  const SplashNavigationWrapper({super.key, this.aiService});
-
-  final AiInterviewService? aiService;
-
-  @override
-  State<SplashNavigationWrapper> createState() =>
-      _SplashNavigationWrapperState();
-}
-
-class _SplashNavigationWrapperState extends State<SplashNavigationWrapper> {
-  bool _showSplash = true;
-
-  void _completeSplash() {
-    setState(() {
-      _showSplash = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_showSplash) {
-      return SplashScreen(onComplete: _completeSplash);
-    }
-    // After splash, we usually go to Login or Home. 
-    // The previous implementation was going to MainNavigationWrapper.
-    // However, typical app flow is Splash -> Login -> Main.
-    // Looking at login_screen.dart, it navigates to MainNavigationWrapper on success.
-    return const LoginScreen();
-  }
-}
-
-class MainNavigationWrapper extends StatefulWidget {
-  const MainNavigationWrapper({super.key, this.aiService});
-
-  final AiInterviewService? aiService;
-
-  @override
-  State<MainNavigationWrapper> createState() => _MainNavigationWrapperState();
-}
-
-class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
-  int _currentIndex = 0;
-  int _practiceRequestVersion = 0;
-  String? _practiceScheduleItemId;
-  static const _openRouterApiKey = String.fromEnvironment('OPENROUTER_API_KEY');
-  late final InterviewPlanController _planController;
-  late final InterviewSessionRepository _sessionRepository;
-  late final AiInterviewService _aiService;
-
-  @override
-  void initState() {
-    super.initState();
-    _planController = InterviewPlanController(
-      repository: InMemoryInterviewPlanRepository(),
-      userId: 'demo_user',
-    );
-    _planController.loadPlans();
-    _sessionRepository = InMemoryInterviewSessionRepository();
-    _aiService =
-        widget.aiService ??
-        (_openRouterApiKey.isEmpty
-            ? MissingOpenRouterApiKeyAiInterviewService()
-            : OpenRouterAiInterviewService(apiKey: _openRouterApiKey));
-  }
-
-  @override
-  void dispose() {
-    _planController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final pages = [
-      InterviewPlanScreen(
-        controller: _planController,
-        onPracticeItem: _startPracticeFromPlanItem,
-      ),
-      InterviewSessionScreen(
-        aiService: _aiService,
-        planController: _planController,
-        sessionRepository: _sessionRepository,
-        practiceScheduleItemId: _practiceScheduleItemId,
-        practiceRequestVersion: _practiceRequestVersion,
-      ),
-      const Center(child: Text('Profile and saved reviews will appear here.')),
-    ];
-
-    return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (int index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        backgroundColor: Colors.white,
-        indicatorColor: AppColors.main.withValues(alpha: 0.2),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.event_note_outlined),
-            selectedIcon: Icon(Icons.event_note, color: AppColors.main),
-            label: 'Plan',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble, color: AppColors.main),
-            label: 'Interview',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person, color: AppColors.main),
-            label: 'Profile',
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _startPracticeFromPlanItem(String scheduleItemId) {
-    setState(() {
-      _practiceScheduleItemId = scheduleItemId;
-      _practiceRequestVersion += 1;
-      _currentIndex = 1;
-    });
   }
 }

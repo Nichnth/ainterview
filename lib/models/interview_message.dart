@@ -18,4 +18,15 @@ class InterviewMessage {
       'createdAt': createdAt.toIso8601String(),
     };
   }
+
+  factory InterviewMessage.fromMap(Map<String, dynamic> map) {
+    return InterviewMessage(
+      sender: InterviewMessageSender.values.firstWhere(
+        (e) => e.name == map['sender'],
+        orElse: () => InterviewMessageSender.ai,
+      ),
+      text: map['text'] as String? ?? '',
+      createdAt: DateTime.parse(map['createdAt'] as String),
+    );
+  }
 }
