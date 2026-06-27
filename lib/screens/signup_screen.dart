@@ -5,6 +5,7 @@ import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
 import '../services/auth_service.dart';
+import 'main_navigation_wrapper.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -18,6 +19,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -34,8 +36,6 @@ class _SignupScreenState extends State<SignupScreen> {
     final password = _passwordController.text;
     final confirm = _confirmController.text;
     final messenger = ScaffoldMessenger.of(context);
-    final rootNavigator = Navigator.of(context, rootNavigator: true);
-    final localNavigator = Navigator.of(context);
 
     if (name.isEmpty || email.isEmpty || password.isEmpty || confirm.isEmpty) {
       messenger.showSnackBar(
@@ -56,24 +56,31 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
-      await AuthService.instance.signUpWithEmail(
+      final credential = await AuthService.instance.signUpWithEmail(
         name: name,
         email: email,
         password: password,
       );
       if (!mounted) return;
-      rootNavigator.pop();
-      localNavigator.popUntil((route) => route.isFirst);
+      // Navigate directly to the main screen
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => MainNavigationWrapper(
+            userId: credential.user!.uid,
+          ),
+        ),
+        (route) => false,
+      );
     } on FirebaseAuthException catch (error) {
       if (!mounted) return;
-      rootNavigator.pop();
+      setState(() {
+        _isLoading = false;
+      });
       final message = switch (error.code) {
         'operation-not-allowed' =>
           'Email/password sign-up is disabled in Firebase Console.',
@@ -85,7 +92,9 @@ class _SignupScreenState extends State<SignupScreen> {
       messenger.showSnackBar(SnackBar(content: Text(message)));
     } catch (error) {
       if (!mounted) return;
-      rootNavigator.pop();
+      setState(() {
+        _isLoading = false;
+      });
       messenger.showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
@@ -213,7 +222,7 @@ class _SignupScreenState extends State<SignupScreen> {
               SizedBox(
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _handleSignup,
+                  onPressed: _isLoading ? null : _handleSignup,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.main,
                     shape: RoundedRectangleBorder(
@@ -223,7 +232,16 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: Text('Sign up', style: AppTextStyles.button),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : Text('Sign up', style: AppTextStyles.button),
                 ),
               ),
 

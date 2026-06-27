@@ -15,6 +15,7 @@ class InterviewSession {
     this.linkedScheduleItemId,
     this.preparationFocusTitle,
     this.review,
+    this.isFavorite = false,
   });
 
   final String id;
@@ -28,6 +29,7 @@ class InterviewSession {
   final String? preparationFocusTitle;
   final List<InterviewMessage> messages;
   final InterviewReview? review;
+  final bool isFavorite;
 
   InterviewSession copyWith({
     String? id,
@@ -41,6 +43,7 @@ class InterviewSession {
     String? preparationFocusTitle,
     List<InterviewMessage>? messages,
     InterviewReview? review,
+    bool? isFavorite,
   }) {
     return InterviewSession(
       id: id ?? this.id,
@@ -55,26 +58,39 @@ class InterviewSession {
           preparationFocusTitle ?? this.preparationFocusTitle,
       messages: messages ?? this.messages,
       review: review ?? this.review,
+      isFavorite: isFavorite ?? this.isFavorite,
     );
   }
 
-  Map<String, Object?> toMap() {
+  Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'level': level.key,
-      'stage': stage.key,
-      'language': language.key,
+      'level': level.label,
+      'stage': stage.label,
+      'language': language.label,
       'startedAt': startedAt.toIso8601String(),
       'endedAt': endedAt?.toIso8601String(),
       'linkedPlanId': linkedPlanId,
       'linkedScheduleItemId': linkedScheduleItemId,
       'preparationFocusTitle': preparationFocusTitle,
-      'messages': messages.map((message) => message.toMap()).toList(),
+      'messages': messages.map((m) => m.toMap()).toList(),
       'review': review?.toMap(),
+      'isFavorite': isFavorite,
     };
   }
 
-  factory InterviewSession.fromMap(String id, Map<String, dynamic> map) {
+  factory InterviewSession.fromMap(Object arg1, [Object? arg2]) {
+    final String id;
+    final Map<String, dynamic> map;
+
+    if (arg1 is String) {
+      id = arg1;
+      map = Map<String, dynamic>.from(arg2 as Map);
+    } else {
+      map = Map<String, dynamic>.from(arg1 as Map);
+      id = arg2 as String? ?? map['id'] as String? ?? '';
+    }
+
     final rawMessages = map['messages'] as List? ?? const [];
     final rawReview = map['review'];
 
@@ -98,6 +114,7 @@ class InterviewSession {
       review: rawReview is Map
           ? InterviewReview.fromMap(Map<String, dynamic>.from(rawReview))
           : null,
+      isFavorite: map['isFavorite'] as bool? ?? false,
     );
   }
 

@@ -4,9 +4,7 @@ class AuthService {
   AuthService._privateConstructor();
   static final AuthService instance = AuthService._privateConstructor();
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  FirebaseAuth get _auth => FirebaseAuth.instance;
 
   User? get currentUser => _auth.currentUser;
 
@@ -27,11 +25,13 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    return await _auth.signInWithEmailAndPassword(email: email, password: password);
+    return await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
   }
 
   Future<void> signOut() async {
     await _auth.signOut();
   }
 }
-

@@ -17,18 +17,16 @@ class OpenRouterAiInterviewService implements AiInterviewService {
     Uri? modelsEndpoint,
     List<String>? modelIds,
     Duration? requestTimeout,
-  }) : _apiKey = apiKey,
-       _client = client ?? http.Client(),
-       _endpoint =
-           endpoint ??
-           Uri.parse('https://openrouter.ai/api/v1/chat/completions'),
-       _modelsEndpoint =
-           modelsEndpoint ??
-           Uri.parse(
-             'https://openrouter.ai/api/v1/models?max_price=0&output_modalities=text&sort=throughput-high-to-low',
-           ),
-       _configuredModelIds = modelIds,
-       _requestTimeout = requestTimeout ?? const Duration(seconds: 15);
+  })  : _apiKey = apiKey,
+        _client = client ?? http.Client(),
+        _endpoint = endpoint ??
+            Uri.parse('https://openrouter.ai/api/v1/chat/completions'),
+        _modelsEndpoint = modelsEndpoint ??
+            Uri.parse(
+              'https://openrouter.ai/api/v1/models?max_price=0&output_modalities=text&sort=throughput-high-to-low',
+            ),
+        _configuredModelIds = modelIds,
+        _requestTimeout = requestTimeout ?? const Duration(seconds: 15);
 
   static const defaultModelIds = ['openrouter/free'];
 
@@ -189,14 +187,15 @@ class OpenRouterAiInterviewService implements AiInterviewService {
   }
 
   Future<List<String>> _modelIdsForRequest() async {
-    if (_configuredModelIds != null) {
-      return _configuredModelIds;
+    final configured = _configuredModelIds;
+    if (configured != null) {
+      return configured;
     }
 
     try {
-      final response = await _client
-          .get(_modelsEndpoint, headers: {'Authorization': 'Bearer $_apiKey'})
-          .timeout(_requestTimeout);
+      final response = await _client.get(_modelsEndpoint, headers: {
+        'Authorization': 'Bearer $_apiKey'
+      }).timeout(_requestTimeout);
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return defaultModelIds;
@@ -313,9 +312,8 @@ class OpenRouterAiInterviewService implements AiInterviewService {
     InterviewMessage message,
   ) {
     return {
-      'role': message.sender == InterviewMessageSender.user
-          ? 'user'
-          : 'assistant',
+      'role':
+          message.sender == InterviewMessageSender.user ? 'user' : 'assistant',
       'content': message.text,
     };
   }
@@ -394,9 +392,9 @@ class OpenRouterAiInterviewService implements AiInterviewService {
     final trimmed = content.trim();
     final unfenced = trimmed.startsWith('```')
         ? trimmed
-              .replaceFirst(RegExp(r'^```(?:json)?\s*'), '')
-              .replaceFirst(RegExp(r'\s*```$'), '')
-              .trim()
+            .replaceFirst(RegExp(r'^```(?:json)?\s*'), '')
+            .replaceFirst(RegExp(r'\s*```$'), '')
+            .trim()
         : trimmed;
     final firstBrace = unfenced.indexOf('{');
     final lastBrace = unfenced.lastIndexOf('}');

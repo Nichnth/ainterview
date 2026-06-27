@@ -4,6 +4,7 @@ import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
 import '../services/auth_service.dart';
+import 'main_navigation_wrapper.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -16,6 +17,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -28,7 +30,6 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context, rootNavigator: true);
 
     if (email.isEmpty || password.isEmpty) {
       messenger.showSnackBar(
@@ -37,22 +38,42 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
+    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+    if (!emailRegex.hasMatch(email)) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter a valid email address (e.g., name@example.com)',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
-      await AuthService.instance.signInWithEmail(
+      final credential = await AuthService.instance.signInWithEmail(
         email: email,
         password: password,
       );
       if (!mounted) return;
-      navigator.pop();
+      // Navigate directly to the main screen
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => MainNavigationWrapper(
+            userId: credential.user!.uid,
+          ),
+        ),
+        (route) => false,
+      );
     } catch (error) {
       if (!mounted) return;
-      navigator.pop();
+      setState(() {
+        _isLoading = false;
+      });
       messenger.showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
@@ -78,12 +99,12 @@ class _LoginScreenState extends State<LoginScreen> {
               Center(child: Text('Log in', style: AppTextStyles.h1)),
               const SizedBox(height: 32),
 
-              // Email / Name field
+              // Email field
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
-                  hintText: 'Full Name or email',
+                  hintText: 'Email',
                   filled: true,
                   fillColor: AppColors.light,
                   contentPadding: const EdgeInsets.symmetric(
@@ -102,7 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Ex: Nicholas Abel or nicholasabel@gmail.com',
+                'Ex: nicholasabel@gmail.com',
                 style: AppTextStyles.caption,
               ),
               const SizedBox(height: 16),
@@ -136,7 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _handleLogin,
+                  onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.main,
                     shape: RoundedRectangleBorder(
@@ -146,7 +167,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: Text('Log in', style: AppTextStyles.button),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : Text('Log in', style: AppTextStyles.button),
                 ),
               ),
 

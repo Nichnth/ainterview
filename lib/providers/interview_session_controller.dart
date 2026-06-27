@@ -14,10 +14,10 @@ class InterviewSessionController extends ChangeNotifier {
     InterviewSessionRepository? sessionRepository,
     String userId = 'demo_user',
     DateTime Function()? now,
-  }) : _aiService = aiService,
-       _sessionRepository = sessionRepository,
-       _userId = userId,
-       _now = now ?? DateTime.now;
+  })  : _aiService = aiService,
+        _sessionRepository = sessionRepository,
+        _userId = userId,
+        _now = now ?? DateTime.now;
 
   final AiInterviewService _aiService;
   final InterviewSessionRepository? _sessionRepository;
@@ -231,9 +231,9 @@ class InterviewSessionController extends ChangeNotifier {
       review: review,
     );
 
-    _currentSession = _sessionRepository == null
-        ? session
-        : await _sessionRepository.saveSession(_userId, session);
+    final repo = _sessionRepository;
+    _currentSession =
+        repo == null ? session : await repo.saveSession(_userId, session);
   }
 
   void _refreshCurrentSession() {
@@ -241,8 +241,7 @@ class InterviewSessionController extends ChangeNotifier {
       return;
     }
 
-    final session =
-        _currentSession ??
+    final session = _currentSession ??
         InterviewSession(
           id: '',
           level: _level!,

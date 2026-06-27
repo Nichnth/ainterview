@@ -316,7 +316,7 @@ class _PlanSummaryTile extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.main.withValues(alpha: 0.08)
+              ? AppColors.main.withOpacity(0.08)
               : Colors.white,
           border: Border.all(
             color: isSelected ? AppColors.main : AppColors.border,
@@ -484,7 +484,7 @@ class _ScheduleTile extends StatelessWidget {
           border: Border.all(color: AppColors.border),
           borderRadius: BorderRadius.circular(AppSizes.radiusSmall),
           color: item.isCompleted
-              ? AppColors.success.withValues(alpha: 0.08)
+              ? AppColors.success.withOpacity(0.08)
               : Colors.white,
         ),
         child: Column(
@@ -501,7 +501,7 @@ class _ScheduleTile extends StatelessWidget {
               ),
               secondary: CircleAvatar(
                 radius: 16,
-                backgroundColor: AppColors.main.withValues(alpha: 0.14),
+                backgroundColor: AppColors.main.withOpacity(0.14),
                 child: Text(
                   '$itemNumber',
                   style: AppTextStyles.caption.copyWith(color: AppColors.main),

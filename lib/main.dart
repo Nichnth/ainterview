@@ -58,7 +58,7 @@ class MyApp extends StatelessWidget {
               planRepository: planRepository,
               sessionRepository: sessionRepository,
             )
-          : _AuthGate(
+          : _buildHome(
               aiService: aiService,
               authenticatedUserId: authenticatedUserId,
               profilePage: profilePage,
@@ -66,6 +66,30 @@ class MyApp extends StatelessWidget {
               sessionRepository: sessionRepository,
             ),
     );
+  }
+
+  /// Simple check: if user is logged in, go to main screen. Otherwise, login.
+  static Widget _buildHome({
+    AiInterviewService? aiService,
+    String? authenticatedUserId,
+    Widget? profilePage,
+    InterviewPlanRepository? planRepository,
+    InterviewSessionRepository? sessionRepository,
+  }) {
+    final effectiveUserId =
+        authenticatedUserId ?? AuthService.instance.currentUser?.uid;
+
+    if (effectiveUserId != null) {
+      return MainNavigationWrapper(
+        userId: effectiveUserId,
+        aiService: aiService,
+        profilePage: profilePage,
+        planRepository: planRepository,
+        sessionRepository: sessionRepository,
+      );
+    }
+
+    return const LoginScreen();
   }
 }
 
@@ -104,68 +128,12 @@ class _SplashNavigationWrapperState extends State<SplashNavigationWrapper> {
     if (_showSplash) {
       return SplashScreen(onComplete: _completeSplash);
     }
-    return _AuthGate(
+    return MyApp._buildHome(
       aiService: widget.aiService,
       authenticatedUserId: widget.authenticatedUserId,
       profilePage: widget.profilePage,
       planRepository: widget.planRepository,
       sessionRepository: widget.sessionRepository,
-    );
-  }
-}
-
-class _AuthGate extends StatelessWidget {
-  const _AuthGate({
-    required this.aiService,
-    required this.authenticatedUserId,
-    required this.profilePage,
-    required this.planRepository,
-    required this.sessionRepository,
-  });
-
-  final AiInterviewService? aiService;
-  final String? authenticatedUserId;
-  final Widget? profilePage;
-  final InterviewPlanRepository? planRepository;
-  final InterviewSessionRepository? sessionRepository;
-
-  @override
-  Widget build(BuildContext context) {
-    final userIdOverride = authenticatedUserId;
-    if (userIdOverride != null) {
-      return MainNavigationWrapper(
-        userId: userIdOverride,
-        aiService: aiService,
-        profilePage: profilePage,
-        planRepository: planRepository,
-        sessionRepository: sessionRepository,
-      );
-    }
-
-    return StreamBuilder(
-      stream: AuthService.instance.authStateChanges,
-      initialData: AuthService.instance.currentUser,
-      builder: (context, snapshot) {
-        final user = snapshot.data;
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            user == null) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        if (user == null) {
-          return const LoginScreen();
-        }
-
-        return MainNavigationWrapper(
-          userId: user.uid,
-          aiService: aiService,
-          profilePage: profilePage,
-          planRepository: planRepository,
-          sessionRepository: sessionRepository,
-        );
-      },
     );
   }
 }

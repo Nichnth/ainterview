@@ -8,7 +8,7 @@ import 'interview_session_repository.dart';
 
 class FirestoreInterviewPlanRepository implements InterviewPlanRepository {
   FirestoreInterviewPlanRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
 
@@ -24,9 +24,8 @@ class FirestoreInterviewPlanRepository implements InterviewPlanRepository {
   @override
   Future<InterviewPlan> savePlan(String userId, InterviewPlan plan) async {
     final collection = _plans(userId);
-    final document = plan.id.isEmpty
-        ? collection.doc()
-        : collection.doc(plan.id);
+    final document =
+        plan.id.isEmpty ? collection.doc() : collection.doc(plan.id);
     final savedPlan = plan.id.isEmpty ? plan.copyWith(id: document.id) : plan;
     await document.set(savedPlan.toMap());
     return savedPlan;
@@ -39,71 +38,6 @@ class FirestoreInterviewPlanRepository implements InterviewPlanRepository {
 
   CollectionReference<Map<String, dynamic>> _plans(String userId) {
     return _firestore.collection('users').doc(userId).collection('plans');
-  }
-}
-
-class FirestoreInterviewSessionRepository
-    implements InterviewSessionRepository {
-  FirestoreInterviewSessionRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
-
-  final FirebaseFirestore _firestore;
-
-  @override
-  Future<InterviewSession> saveSession(
-    String userId,
-    InterviewSession session,
-  ) async {
-    final collection = _sessions(userId);
-    final document = session.id.isEmpty
-        ? collection.doc()
-        : collection.doc(session.id);
-    final savedSession = session.id.isEmpty
-        ? session.copyWith(id: document.id)
-        : session;
-    await document.set(savedSession.toMap());
-    return savedSession;
-  }
-
-  @override
-  Future<List<InterviewSession>> fetchSessions(
-    String userId, {
-    InterviewLevel? level,
-    InterviewStage? stage,
-    bool completedOnly = false,
-    int? limit,
-  }) async {
-    Query<Map<String, dynamic>> query = _sessions(userId);
-    if (level != null) {
-      query = query.where('level', isEqualTo: level.key);
-    }
-    if (stage != null) {
-      query = query.where('stage', isEqualTo: stage.key);
-    }
-    if (completedOnly) {
-      query = query.where('endedAt', isNotEqualTo: null);
-      query = query.orderBy('endedAt', descending: true);
-    } else {
-      query = query.orderBy('startedAt', descending: true);
-    }
-    if (limit != null) {
-      query = query.limit(limit);
-    }
-
-    final snapshot = await query.get();
-    final sessions = [
-      for (final document in snapshot.docs)
-        InterviewSession.fromMap(document.id, _normalizeMap(document.data())),
-    ];
-
-    return sessions;
-  }
-
-  CollectionReference<Map<String, dynamic>> _sessions(String userId) {
-    return _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('interview_sessions');
   }
 }
 
