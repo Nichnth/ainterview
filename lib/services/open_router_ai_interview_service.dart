@@ -120,12 +120,25 @@ class OpenRouterAiInterviewService implements AiInterviewService {
         temperature: 0,
       );
 
-      return _parseReview(
-        repairedContent,
-        level: level,
-        stage: stage,
-        language: language,
-      );
+      try {
+        return _parseReview(
+          repairedContent,
+          level: level,
+          stage: stage,
+          language: language,
+        );
+      } on OpenRouterAiInterviewException catch (error) {
+        if (_isMissingJsonObjectError(error)) {
+          return _fallbackReview(
+            level: level,
+            stage: stage,
+            language: language,
+            messages: messages,
+          );
+        }
+
+        rethrow;
+      }
     }
   }
 
@@ -460,6 +473,85 @@ class OpenRouterAiInterviewService implements AiInterviewService {
       description: text,
       level: level,
       stage: stage,
+    );
+  }
+
+  bool _isMissingJsonObjectError(OpenRouterAiInterviewException error) {
+    return error.message.contains('did not contain a JSON object');
+  }
+
+  InterviewReview _fallbackReview({
+    required InterviewLevel level,
+    required InterviewStage stage,
+    required InterviewLanguage language,
+    required List<InterviewMessage> messages,
+  }) {
+    final userAnswerCount = messages
+        .where((message) => message.sender == InterviewMessageSender.user)
+        .length;
+
+    if (language == InterviewLanguage.indonesian) {
+      return InterviewReview(
+        id: _reviewId(),
+        level: level,
+        stage: stage,
+        language: language,
+        createdAt: DateTime.now().toUtc(),
+        summary:
+            'Review otomatis dibuat dari $userAnswerCount jawaban karena respons AI tidak berformat JSON.',
+        communicationFeedback:
+            'Jawaban sudah terekam. Latih struktur STAR: situasi, tugas, aksi, dan hasil agar respons lebih mudah dinilai.',
+        technicalFeedback: stage == InterviewStage.technical
+            ? 'Tambahkan detail teknis, alasan keputusan, trade-off, dan dampak solusi.'
+            : 'Hubungkan pengalaman dengan motivasi, kolaborasi, ownership, dan pembelajaran.',
+        improvementAreas: const [
+          'Perjelas konteks dan dampak jawaban',
+          'Tambahkan contoh konkret dari pengalaman',
+        ],
+        recommendations: [
+          ReviewRecommendation(
+            id: 'recommendation_1',
+            title: stage == InterviewStage.technical
+                ? 'Latihan jawaban teknis terstruktur'
+                : 'Latihan cerita interview dengan STAR',
+            description:
+                'Ulangi satu pertanyaan dan jawab dengan konteks, aksi yang kamu ambil, alasan, dan hasil terukur.',
+            level: level,
+            stage: stage,
+          ),
+        ],
+      );
+    }
+
+    return InterviewReview(
+      id: _reviewId(),
+      level: level,
+      stage: stage,
+      language: language,
+      createdAt: DateTime.now().toUtc(),
+      summary:
+          'Automatic review created from $userAnswerCount answer(s) because the AI response was not valid JSON.',
+      communicationFeedback:
+          'Your answer was recorded. Practice using the STAR structure: situation, task, action, and result.',
+      technicalFeedback: stage == InterviewStage.technical
+          ? 'Add technical detail, decision rationale, trade-offs, and solution impact.'
+          : 'Connect your experience to motivation, collaboration, ownership, and learning.',
+      improvementAreas: const [
+        'Clarify context and impact',
+        'Add concrete examples from experience',
+      ],
+      recommendations: [
+        ReviewRecommendation(
+          id: 'recommendation_1',
+          title: stage == InterviewStage.technical
+              ? 'Practice a structured technical answer'
+              : 'Practice an interview story with STAR',
+          description:
+              'Retry one question and answer with context, your action, your reasoning, and a measurable result.',
+          level: level,
+          stage: stage,
+        ),
+      ],
     );
   }
 
