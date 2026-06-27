@@ -1,17 +1,22 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
+import '../models/bookmark.dart';
 import '../models/interview_enums.dart';
 import '../models/interview_message.dart';
 import '../models/interview_preparation_context.dart';
 import '../providers/interview_plan_controller.dart';
 import '../providers/interview_session_controller.dart';
 import '../services/ai_interview_service.dart';
+import '../services/auth_service.dart';
+import '../services/bookmark_repository.dart';
 import '../services/interview_session_repository.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_dropdown.dart';
+import '../widgets/edit_label_dialog.dart';
 
 class DuolingoInterviewScreen extends StatefulWidget {
   const DuolingoInterviewScreen({
@@ -175,7 +180,7 @@ class _DuolingoInterviewScreenState extends State<DuolingoInterviewScreen> {
 
           if (_controller.isEnded && _controller.review != null) {
             return _CompletionView(
-              summary: _controller.review!.summary,
+              controller: _controller,
               onFinished: () => Navigator.of(context).pop(),
             );
           }
@@ -421,8 +426,39 @@ class _DuolingoSessionView extends StatelessWidget {
                   if (messages.length > 3) ...[
                     const SizedBox(height: 8),
                     TextButton(
-                      onPressed: () => controller.endAndReview(),
-                      child: const Text('Finish and get review early'),
+                      onPressed: controller.isBusy
+                          ? null
+                          : () async {
+                              try {
+                                await controller.endAndReview();
+                              } catch (error) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Review failed: $error',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                      child: controller.isBusy
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                SizedBox(
+                                  height: 14,
+                                  width: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Text('Generating review...'),
+                              ],
+                            )
+                          : const Text('Finish and get review early'),
                     )
                   ]
                 ],
@@ -435,13 +471,83 @@ class _DuolingoSessionView extends StatelessWidget {
   }
 }
 
-class _CompletionView extends StatelessWidget {
-  const _CompletionView({required this.summary, required this.onFinished});
-  final String summary;
+class _CompletionView extends StatefulWidget {
+  const _CompletionView({
+    required this.controller,
+    required this.onFinished,
+  });
+
+  final InterviewSessionController controller;
   final VoidCallback onFinished;
 
   @override
+  State<_CompletionView> createState() => _CompletionViewState();
+}
+
+class _CompletionViewState extends State<_CompletionView> {
+  final _bookmarkRepo = BookmarkRepository();
+  bool _isBookmarked = false;
+  bool _isSaving = false;
+
+  Future<void> _handleBookmark() async {
+    final controller = widget.controller;
+    final session = controller.currentSession;
+    final review = controller.review;
+    final userId = AuthService.instance.currentUser?.uid;
+
+    if (session == null || review == null || userId == null) return;
+
+    final defaultLabel =
+        '${session.stage.label} Interview - ${DateFormat('dd MMM yyyy').format(DateTime.now())}';
+
+    final confirmedLabel = await showDialog<String>(
+      context: context,
+      builder: (ctx) => EditLabelDialog(
+        initialLabel: defaultLabel,
+        title: 'Bookmark this session',
+      ),
+    );
+
+    if (confirmedLabel == null || !mounted) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final bookmark = Bookmark(
+        id: '',
+        sessionId: session.id,
+        label: confirmedLabel.isEmpty ? defaultLabel : confirmedLabel,
+        summary: review.summary,
+        level: session.level.label,
+        stage: session.stage.label,
+        language: session.language.label,
+        sessionDate: session.startedAt,
+        createdAt: DateTime.now().toUtc(),
+      );
+
+      await _bookmarkRepo.addBookmark(userId, bookmark);
+
+      if (!mounted) return;
+      setState(() {
+        _isBookmarked = true;
+        _isSaving = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bookmarked!')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to bookmark: $error')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final summary = widget.controller.review?.summary ?? '';
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -460,7 +566,58 @@ class _CompletionView extends StatelessWidget {
                 style: AppTextStyles.bodyMedium.copyWith(color: AppColors.secondary),
               ),
               const Spacer(),
-              CustomButton(text: 'CONTINUE', onPressed: onFinished),
+              Row(
+                children: [
+                  // Bookmark button
+                  Container(
+                    height: 52,
+                    width: 52,
+                    margin: const EdgeInsets.only(right: 12),
+                    child: OutlinedButton(
+                      onPressed: (_isBookmarked || _isSaving)
+                          ? null
+                          : _handleBookmark,
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        side: BorderSide(
+                          color: _isBookmarked
+                              ? AppColors.main
+                              : AppColors.border,
+                          width: 2,
+                        ),
+                        backgroundColor: _isBookmarked
+                            ? AppColors.main.withOpacity(0.1)
+                            : Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.main,
+                              ),
+                            )
+                          : Icon(
+                              _isBookmarked
+                                  ? Icons.bookmark
+                                  : Icons.bookmark_border,
+                              color: AppColors.main,
+                            ),
+                    ),
+                  ),
+                  // Continue button
+                  Expanded(
+                    child: CustomButton(
+                      text: 'CONTINUE',
+                      onPressed: widget.onFinished,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -468,3 +625,4 @@ class _CompletionView extends StatelessWidget {
     );
   }
 }
+

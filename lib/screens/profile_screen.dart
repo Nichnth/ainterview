@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -6,11 +7,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
+import '../models/bookmark.dart';
 import '../models/interview_session.dart';
 import '../services/auth_service.dart';
+import '../services/bookmark_repository.dart';
 import '../services/firestore_interview_session_repository.dart';
+import '../widgets/edit_label_dialog.dart';
 import 'login_screen.dart';
-import 'session_history_detail_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? userId;
@@ -32,11 +35,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoadingSessions = false;
   String? _sessionError;
 
+  // Bookmarks
+  final _bookmarkRepo = BookmarkRepository();
+  List<Bookmark> _bookmarks = const [];
+  bool _isLoadingBookmarks = false;
+  StreamSubscription<List<Bookmark>>? _bookmarkSubscription;
+
   @override
   void initState() {
     super.initState();
     _loadProfileData();
     _loadSessionHistory();
+    _loadBookmarks();
+  }
+
+  @override
+  void dispose() {
+    _bookmarkSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadProfileData() async {
@@ -89,6 +105,85 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         setState(() => _isLoadingSessions = false);
       }
+    }
+  }
+
+  void _loadBookmarks() {
+    final userId = widget.userId ?? AuthService.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    setState(() => _isLoadingBookmarks = true);
+
+    _bookmarkSubscription = _bookmarkRepo.watchBookmarks(userId).listen(
+      (bookmarks) {
+        if (!mounted) return;
+        setState(() {
+          _bookmarks = bookmarks;
+          _isLoadingBookmarks = false;
+        });
+      },
+      onError: (error) {
+        if (!mounted) return;
+        setState(() => _isLoadingBookmarks = false);
+      },
+    );
+  }
+
+  Future<void> _editBookmarkLabel(Bookmark bookmark) async {
+    final userId = widget.userId ?? AuthService.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    final newLabel = await showDialog<String>(
+      context: context,
+      builder: (context) => EditLabelDialog(initialLabel: bookmark.label),
+    );
+
+    if (newLabel == null || newLabel.isEmpty || !mounted) return;
+
+    try {
+      await _bookmarkRepo.updateBookmarkLabel(userId, bookmark.id, newLabel);
+      _loadBookmarks();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update: $error')),
+      );
+    }
+  }
+
+  Future<void> _deleteBookmark(Bookmark bookmark) async {
+    final userId = widget.userId ?? AuthService.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Bookmark?'),
+        content: Text('Remove "${bookmark.label}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('DELETE',
+                style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _bookmarkRepo.deleteBookmark(userId, bookmark.id);
+      _loadBookmarks();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete: $error')),
+      );
     }
   }
 
@@ -182,9 +277,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                          child: _ReviewHistory(
-                            isLoading: _isLoadingSessions,
-                            errorMessage: _sessionError,
+                          child: _ProfileContent(
+                            bookmarks: _bookmarks,
+                            isLoadingBookmarks: _isLoadingBookmarks,
+                            onEditBookmark: _editBookmarkLabel,
+                            onDeleteBookmark: _deleteBookmark,
+                            isLoadingSessions: _isLoadingSessions,
+                            sessionError: _sessionError,
                             sessions: _sessions,
                             onRetry: _loadSessionHistory,
                           ),
@@ -227,28 +326,264 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _confirmDelete(InterviewSession session) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete History?'),
-        content:
-            const Text('Are you sure you want to delete this session history?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('CANCEL')),
-          TextButton(
-            onPressed: () {
-              final uid = AuthService.instance.currentUser?.uid;
-              if (uid != null) {
-                widget.sessionRepository?.deleteSession(uid, session.id);
-              }
-              Navigator.pop(context);
-            },
-            child:
-                const Text('DELETE', style: TextStyle(color: AppColors.danger)),
+}
+
+/// Combined content widget that shows bookmarks section + review history
+class _ProfileContent extends StatelessWidget {
+  const _ProfileContent({
+    required this.bookmarks,
+    required this.isLoadingBookmarks,
+    required this.onEditBookmark,
+    required this.onDeleteBookmark,
+    required this.isLoadingSessions,
+    required this.sessionError,
+    required this.sessions,
+    required this.onRetry,
+  });
+
+  final List<Bookmark> bookmarks;
+  final bool isLoadingBookmarks;
+  final void Function(Bookmark) onEditBookmark;
+  final void Function(Bookmark) onDeleteBookmark;
+  final bool isLoadingSessions;
+  final String? sessionError;
+  final List<InterviewSession> sessions;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: [
+        // ── Bookmarks Section ──
+        Row(
+          children: [
+            const Icon(Icons.bookmark, color: AppColors.main, size: 20),
+            const SizedBox(width: 6),
+            Text('Bookmarks', style: AppTextStyles.h3),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (isLoadingBookmarks)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (bookmarks.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Center(
+              child: Text(
+                'No bookmarks yet.\nBookmark a session after completing an interview!',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.caption,
+              ),
+            ),
+          )
+        else
+          ...bookmarks.map(
+            (bookmark) => _BookmarkCard(
+              bookmark: bookmark,
+              onEdit: () => onEditBookmark(bookmark),
+              onDelete: () => onDeleteBookmark(bookmark),
+            ),
           ),
+
+        const SizedBox(height: 24),
+
+        // ── Review History Section ──
+        Row(
+          children: [
+            const Icon(Icons.history, color: AppColors.secondary, size: 20),
+            const SizedBox(width: 6),
+            Text('Review History', style: AppTextStyles.h3),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (isLoadingSessions)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (sessionError != null)
+          _ErrorCard(message: sessionError!, onRetry: onRetry)
+        else if (sessions.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Center(
+              child: Text(
+                'Card review latihan interview\nakan muncul di sini',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.caption,
+              ),
+            ),
+          )
+        else
+          ...sessions.map(
+            (session) => _ReviewHistoryCard(session: session),
+          ),
+
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+}
+
+class _BookmarkCard extends StatelessWidget {
+  const _BookmarkCard({
+    required this.bookmark,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final Bookmark bookmark;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header row: label + action icons
+            Row(
+              children: [
+                const Icon(Icons.bookmark, color: AppColors.main, size: 18),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    bookmark.label,
+                    style: AppTextStyles.h3,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  constraints: const BoxConstraints(),
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.edit_outlined,
+                      color: AppColors.secondary, size: 18),
+                  onPressed: onEdit,
+                  tooltip: 'Edit label',
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  constraints: const BoxConstraints(),
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.delete_outline,
+                      color: Colors.grey, size: 18),
+                  onPressed: onDelete,
+                  tooltip: 'Delete',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Level / Stage badges
+            Row(
+              children: [
+                _Badge(text: bookmark.level),
+                const SizedBox(width: 6),
+                _Badge(text: bookmark.stage),
+                const SizedBox(width: 6),
+                _Badge(text: bookmark.language),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Summary
+            Text(
+              bookmark.summary,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+
+            // Date
+            Row(
+              children: [
+                const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  DateFormat('dd MMM yyyy, HH:mm')
+                      .format(bookmark.sessionDate),
+                  style: AppTextStyles.caption,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.main.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: AppColors.main,
+          fontWeight: FontWeight.w600,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorCard extends StatelessWidget {
+  const _ErrorCard({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Could not load review history', style: AppTextStyles.h3),
+          const SizedBox(height: 8),
+          Text(message, textAlign: TextAlign.center, style: AppTextStyles.caption),
+          const SizedBox(height: 12),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),
     );
@@ -357,64 +692,6 @@ class _SessionHistoryCard extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _ReviewHistory extends StatelessWidget {
-  const _ReviewHistory({
-    required this.isLoading,
-    required this.errorMessage,
-    required this.sessions,
-    required this.onRetry,
-  });
-
-  final bool isLoading;
-  final String? errorMessage;
-  final List<InterviewSession> sessions;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (errorMessage != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Could not load review history', style: AppTextStyles.h3),
-            const SizedBox(height: 8),
-            Text(
-              errorMessage!,
-              textAlign: TextAlign.center,
-              style: AppTextStyles.caption,
-            ),
-            const SizedBox(height: 12),
-            TextButton(onPressed: onRetry, child: const Text('Retry')),
-          ],
-        ),
-      );
-    }
-
-    if (sessions.isEmpty) {
-      return const Center(
-        child: Text(
-          'Card review latihan interview\nakan muncul di sini',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.black38, fontSize: 16),
-        ),
-      );
-    }
-
-    return ListView.separated(
-      itemCount: sessions.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        return _ReviewHistoryCard(session: sessions[index]);
-      },
     );
   }
 }

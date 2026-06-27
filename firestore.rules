@@ -20,6 +20,10 @@ service cloud.firestore {
       match /interview_sessions/{sessionId} {
         allow read, create, update, delete: if isOwner(userId);
       }
+
+      match /bookmarks/{bookmarkId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
     }
 
     match /{document=**} {

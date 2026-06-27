@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
+import '../models/bookmark.dart';
 import '../models/interview_enums.dart';
 import '../models/interview_plan.dart';
 import '../models/schedule_item.dart';
 import '../providers/interview_plan_controller.dart';
+import '../services/auth_service.dart';
+import '../services/bookmark_repository.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_dropdown.dart';
 import '../widgets/date_time_picker.dart';
+import '../widgets/edit_label_dialog.dart';
 
 class InterviewPlanScreen extends StatefulWidget {
   const InterviewPlanScreen({
@@ -440,6 +445,7 @@ class _PlanDetail extends StatelessWidget {
               _ScheduleTile(
                 itemNumber: index + 1,
                 item: plan.scheduleItems[index],
+                plan: plan,
                 onChanged: (value) async {
                   try {
                     await controller.toggleScheduleItem(
@@ -462,18 +468,82 @@ class _PlanDetail extends StatelessWidget {
   }
 }
 
-class _ScheduleTile extends StatelessWidget {
+class _ScheduleTile extends StatefulWidget {
   const _ScheduleTile({
     required this.itemNumber,
     required this.item,
+    required this.plan,
     required this.onChanged,
     required this.onPractice,
   });
 
   final int itemNumber;
   final ScheduleItem item;
+  final InterviewPlan plan;
   final ValueChanged<bool?> onChanged;
   final VoidCallback? onPractice;
+
+  @override
+  State<_ScheduleTile> createState() => _ScheduleTileState();
+}
+
+class _ScheduleTileState extends State<_ScheduleTile> {
+  final _bookmarkRepo = BookmarkRepository();
+  bool _isSavingBookmark = false;
+  bool _hasBookmarked = false;
+
+  Future<void> _handleBookmark() async {
+    final userId = AuthService.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    final item = widget.item;
+    final plan = widget.plan;
+    final defaultLabel =
+        '${item.title} - ${DateFormat('dd MMM yyyy').format(DateTime.now())}';
+
+    final confirmedLabel = await showDialog<String>(
+      context: context,
+      builder: (ctx) => EditLabelDialog(
+        initialLabel: defaultLabel,
+        title: 'Bookmark this item',
+      ),
+    );
+
+    if (confirmedLabel == null || !mounted) return;
+
+    setState(() => _isSavingBookmark = true);
+
+    try {
+      final bookmark = Bookmark(
+        id: '',
+        sessionId: item.id,
+        label: confirmedLabel.isEmpty ? defaultLabel : confirmedLabel,
+        summary: item.description,
+        level: plan.level.label,
+        stage: item.suggestedStage?.label ?? 'General',
+        language: plan.language.label,
+        sessionDate: DateTime.now(),
+        createdAt: DateTime.now().toUtc(),
+      );
+
+      await _bookmarkRepo.addBookmark(userId, bookmark);
+
+      if (!mounted) return;
+      setState(() {
+        _isSavingBookmark = false;
+        _hasBookmarked = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bookmarked!')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSavingBookmark = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to bookmark: $error')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -483,27 +553,27 @@ class _ScheduleTile extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border.all(color: AppColors.border),
           borderRadius: BorderRadius.circular(AppSizes.radiusSmall),
-          color: item.isCompleted
+          color: widget.item.isCompleted
               ? AppColors.success.withOpacity(0.08)
               : Colors.white,
         ),
         child: Column(
           children: [
             CheckboxListTile(
-              value: item.isCompleted,
-              onChanged: onChanged,
+              value: widget.item.isCompleted,
+              onChanged: widget.onChanged,
               controlAffinity: ListTileControlAffinity.leading,
               activeColor: AppColors.success,
-              title: Text(item.title, style: AppTextStyles.h3),
+              title: Text(widget.item.title, style: AppTextStyles.h3),
               subtitle: Text(
-                'Day ${item.dayOffset} - ${item.description}',
+                'Day ${widget.item.dayOffset} - ${widget.item.description}',
                 style: AppTextStyles.caption,
               ),
               secondary: CircleAvatar(
                 radius: 16,
                 backgroundColor: AppColors.main.withOpacity(0.14),
                 child: Text(
-                  '$itemNumber',
+                  '${widget.itemNumber}',
                   style: AppTextStyles.caption.copyWith(color: AppColors.main),
                 ),
               ),
@@ -515,14 +585,36 @@ class _ScheduleTile extends StatelessWidget {
                 AppSizes.pMedium,
                 AppSizes.pSmall,
               ),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  key: ValueKey('practice_${item.id}'),
-                  onPressed: onPractice,
-                  icon: const Icon(Icons.play_arrow_outlined, size: 18),
-                  label: const Text('Practice'),
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // Bookmark button
+                  IconButton(
+                    onPressed: _isSavingBookmark ? null : _handleBookmark,
+                    icon: _isSavingBookmark
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            _hasBookmarked
+                                ? Icons.bookmark
+                                : Icons.bookmark_border,
+                            size: 20,
+                            color: _hasBookmarked
+                                ? AppColors.main
+                                : AppColors.secondary,
+                          ),
+                    tooltip: 'Bookmark',
+                  ),
+                  TextButton.icon(
+                    key: ValueKey('practice_${widget.item.id}'),
+                    onPressed: widget.onPractice,
+                    icon: const Icon(Icons.play_arrow_outlined, size: 18),
+                    label: const Text('Practice'),
+                  ),
+                ],
               ),
             ),
           ],
